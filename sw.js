@@ -5,8 +5,8 @@
 const CACHE = 'clock-v2';
 
 const PRECACHE = [
-  '/index.html',
-  '/manifest.json',
+  '/Clock/index.html',
+  '/Clock/manifest.json',
   'https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@100;200;300;400&family=Syne:wght@700;800&display=swap',
 ];
 
