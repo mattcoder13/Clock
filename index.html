@@ -1,0 +1,3499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Clock</title>
+  <meta name="theme-color" content="#0a0a0a"/>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Clock"/>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@100;200;300;400&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --bg2: #111;
+      --bg3: #161616;
+      --border: #1c1c1c;
+      --border2: #252525;
+      --text: #e8e5df;
+      --muted: #444;
+      --muted2: #333;
+      --dim: #888;
+      --accent: #c8a96e;
+      --accent-dim: #8a7040;
+      --accent-glow: rgba(200,169,110,0.35);
+      --accent-soft: rgba(200,169,110,0.08);
+      --accent-soft2: rgba(200,169,110,0.14);
+      --red: #e05a5a;
+      --green: #5aaa6e;
+    }
+
+    /* theme variants — same structure, different accent */
+    [data-theme="silver"] {
+      --accent: #c7ccd4;
+      --accent-dim: #7e8289;
+      --accent-glow: rgba(199,204,212,0.35);
+      --accent-soft: rgba(199,204,212,0.08);
+      --accent-soft2: rgba(199,204,212,0.14);
+    }
+    [data-theme="sage"] {
+      --accent: #8faf8a;
+      --accent-dim: #5a7a58;
+      --accent-glow: rgba(143,175,138,0.35);
+      --accent-soft: rgba(143,175,138,0.08);
+      --accent-soft2: rgba(143,175,138,0.14);
+    }
+    [data-theme="rose"] {
+      --accent: #c89a9a;
+      --accent-dim: #8a6868;
+      --accent-glow: rgba(200,154,154,0.35);
+      --accent-soft: rgba(200,154,154,0.08);
+      --accent-soft2: rgba(200,154,154,0.14);
+    }
+    [data-theme="ice"] {
+      --accent: #8fb4d6;
+      --accent-dim: #587a94;
+      --accent-glow: rgba(143,180,214,0.35);
+      --accent-soft: rgba(143,180,214,0.08);
+      --accent-soft2: rgba(143,180,214,0.14);
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Azeret Mono', monospace;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      overflow: hidden;
+    }
+
+    .app {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+    }
+
+    /* ── TABS ── */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .tabs::-webkit-scrollbar { display: none; }
+
+    .tab {
+      flex: 1 0 auto;
+      min-width: 60px;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: 'Azeret Mono', monospace;
+      font-size: 9px;
+      font-weight: 300;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      padding: 14px 8px;
+      cursor: pointer;
+      position: relative;
+      transition: color 0.2s;
+    }
+
+    .tab::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 20%;
+      right: 20%;
+      height: 1px;
+      background: var(--accent);
+      opacity: 0;
+      transform: scaleX(0.5);
+      transition: opacity 0.25s, transform 0.25s cubic-bezier(0.34,1.56,0.64,1);
+    }
+
+    .tab.active { color: var(--text); }
+    .tab.active::after { opacity: 1; transform: scaleX(1); }
+
+    /* ── PANELS ── */
+    .panels { flex: 1; position: relative; overflow: hidden; }
+
+    .panel {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem 1.25rem;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(8px);
+      transition: opacity 0.3s cubic-bezier(0.4,0,0.2,1), transform 0.3s cubic-bezier(0.4,0,0.2,1);
+      overflow-y: auto;
+    }
+    .panel::-webkit-scrollbar { display: none; }
+    .panel { scrollbar-width: none; }
+
+    .panel.active {
+      opacity: 1;
+      pointer-events: all;
+      transform: translateY(0);
+    }
+
+    .panel.exit {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+
+    /* ── CLOCK FACE ── */
+    .clock-face {
+      position: relative;
+      width: min(280px, 78vw);
+      height: min(280px, 78vw);
+      margin-bottom: 2rem;
+      flex-shrink: 0;
+    }
+
+    .clock-ring-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .ring-track {
+      fill: none;
+      stroke: var(--border);
+      stroke-width: 2;
+    }
+
+    .ring-progress {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 2;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.25s linear, stroke 0.4s ease;
+      filter: drop-shadow(0 0 4px var(--accent-glow));
+    }
+
+    .ring-progress.chrono {
+      stroke: var(--dim);
+      filter: drop-shadow(0 0 3px rgba(136,136,136,0.25));
+    }
+    .ring-progress.urgent {
+      stroke: var(--red);
+      filter: drop-shadow(0 0 6px rgba(224,90,90,0.55));
+      animation: urgentPulse 1s ease-in-out infinite;
+    }
+    @keyframes urgentPulse {
+      0%,100% { filter: drop-shadow(0 0 6px rgba(224,90,90,0.55)); }
+      50%     { filter: drop-shadow(0 0 10px rgba(224,90,90,0.85)); }
+    }
+
+    .clock-inner {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .clock-label {
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 300;
+    }
+
+    .clock-display {
+      font-family: 'Azeret Mono', monospace;
+      font-weight: 100;
+      font-size: clamp(34px, 13vw, 52px);
+      letter-spacing: -0.02em;
+      line-height: 1;
+      color: var(--text);
+      transition: color 0.3s;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .clock-display.urgent {
+      color: var(--red);
+      animation: urgentText 1s ease-in-out infinite;
+    }
+    @keyframes urgentText {
+      0%,100% { opacity: 1; }
+      50%     { opacity: 0.6; }
+    }
+
+    .clock-ms {
+      font-size: 14px;
+      font-weight: 200;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      min-height: 18px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .clock-sublabel {
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent-dim);
+      min-height: 14px;
+    }
+
+    /* analog hands */
+    .hand {
+      stroke-linecap: round;
+      transform-origin: 100px 100px;
+      transition: transform 0.2s cubic-bezier(0.4,0,0.2,1);
+    }
+    .hand-hour   { stroke: var(--text);   stroke-width: 3; }
+    .hand-minute { stroke: var(--text);   stroke-width: 2; }
+    .hand-second { stroke: var(--accent); stroke-width: 1; }
+    .hand-pivot  { fill: var(--accent); }
+    .hour-numeral { fill: var(--dim); font-family: 'Azeret Mono', monospace; font-weight: 200; font-size: 8px; letter-spacing: 0.05em; }
+
+    /* ── CONTROLS ── */
+    .controls {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 1.25rem;
+    }
+
+    .ctrl-btn {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: none;
+      border: 1px solid var(--border2);
+      color: var(--dim);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.15s, color 0.15s, background 0.15s, transform 0.12s cubic-bezier(0.34,1.56,0.64,1);
+      -webkit-tap-highlight-color: transparent;
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .ctrl-btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0;
+      transform: scale(0);
+      transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+    }
+
+    .ctrl-btn:active::after {
+      transform: scale(2);
+      opacity: 0.08;
+      transition: transform 0s, opacity 0s;
+    }
+
+    .ctrl-btn:active {
+      transform: scale(0.91);
+    }
+
+    .ctrl-btn.primary {
+      width: 64px;
+      height: 64px;
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .ctrl-btn.primary:active { background: var(--accent-soft); }
+    .ctrl-btn:active { border-color: var(--text); color: var(--text); }
+
+    .ctrl-btn.running.primary {
+      border-color: var(--text);
+      color: var(--text);
+    }
+
+    .ctrl-btn:disabled { opacity: 0.2; pointer-events: none; }
+
+    .ctrl-btn.primary.running::before {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      border: 1px solid currentColor;
+      opacity: 0;
+      animation: btnPulse 2s ease-out infinite;
+    }
+
+    @keyframes btnPulse {
+      0%   { inset: -2px; opacity: 0.4; }
+      100% { inset: -10px; opacity: 0; }
+    }
+
+    /* ── LAPS ── */
+    .laps-wrap {
+      width: 100%;
+      max-width: 320px;
+      max-height: 160px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .laps-wrap::-webkit-scrollbar { display: none; }
+
+    .lap {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--dim);
+      animation: lapIn 0.2s ease-out;
+      font-variant-numeric: tabular-nums;
+    }
+
+    @keyframes lapIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .lap:last-child { border-bottom: none; }
+    .lap-num { font-size: 9px; letter-spacing: 0.1em; color: var(--muted2); display:flex; align-items:center; gap:6px; }
+    .lap-marker { width: 4px; height: 4px; border-radius: 50%; background: transparent; }
+    .lap-split { color: var(--text); font-weight: 300; }
+    .lap-total { font-size: 10px; color: var(--muted); }
+    .lap.best  .lap-split { color: var(--green); } .lap.best  .lap-marker { background: var(--green); }
+    .lap.worst .lap-split { color: var(--red); }   .lap.worst .lap-marker { background: var(--red); }
+
+    /* ── COUNTDOWN INPUT ── */
+    .countdown-setup {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.1rem;
+      width: 100%;
+      max-width: 320px;
+      margin: 0 auto;
+    }
+
+    .time-inputs {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .time-seg {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .time-seg-label {
+      font-size: 8px;
+      color: var(--muted2);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .time-seg-input {
+      width: 68px;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: 'Azeret Mono', monospace;
+      font-weight: 200;
+      font-size: 28px;
+      text-align: center;
+      padding: 10px 4px;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .time-seg-input:focus { border-color: var(--accent); }
+
+    .time-colon {
+      font-size: 28px;
+      font-weight: 100;
+      color: var(--muted2);
+      padding-bottom: 18px;
+    }
+
+    .preset-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .preset-btn {
+      background: none;
+      border: 1px solid var(--border2);
+      border-radius: 3px;
+      color: var(--dim);
+      font-family: 'Azeret Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      padding: 5px 10px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .preset-btn:active,
+    .preset-btn.active { border-color: var(--accent); color: var(--accent); }
+
+    /* ── TIME OF DAY / FLIP CLOCK ── */
+    .tod-date {
+      font-size: 11px;
+      font-weight: 300;
+      color: var(--muted);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-top: 0.5rem;
+    }
+
+    .tod-sub {
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      color: var(--muted2);
+      text-transform: uppercase;
+      margin-top: 0.25rem;
+    }
+
+    /* ── DONE STATE ── */
+    .done-flash { animation: doneFlash 0.7s ease-out; }
+
+    @keyframes doneFlash {
+      0%   { opacity: 1; color: var(--text); }
+      20%  { opacity: 1; color: var(--accent); }
+      40%  { opacity: 0.15; }
+      60%  { opacity: 1; color: var(--accent); }
+      80%  { opacity: 0.3; }
+      100% { opacity: 1; color: var(--text); }
+    }
+
+    .done-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 50;
+      opacity: 0;
+    }
+
+    .done-overlay.fire {
+      animation: overlayPulse 0.9s cubic-bezier(0.4,0,0.6,1) forwards;
+    }
+
+    @keyframes overlayPulse {
+      0%   { opacity: 0;   background: transparent; }
+      15%  { opacity: 1;   background: var(--accent-soft2); }
+      40%  { opacity: 0.4; background: var(--accent-soft); }
+      65%  { opacity: 0.8; background: var(--accent-soft2); }
+      100% { opacity: 0;   background: transparent; }
+    }
+
+    /* radial burst for done */
+    .done-burst {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 51;
+      display: none;
+    }
+    .done-burst.fire { display: block; }
+    .done-burst svg {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: min(400px, 80vw);
+      height: min(400px, 80vw);
+      transform: translate(-50%,-50%);
+    }
+    .burst-ray {
+      stroke: var(--accent);
+      stroke-width: 1;
+      opacity: 0;
+      transform-origin: center;
+      animation: burstRay 0.9s cubic-bezier(0.2,0.7,0.3,1) forwards;
+    }
+    @keyframes burstRay {
+      0%   { opacity: 0;   stroke-dashoffset: 50; }
+      25%  { opacity: 0.9; }
+      100% { opacity: 0;   stroke-dashoffset: 0; }
+    }
+
+    @keyframes ringFill {
+      from { stroke-dashoffset: var(--ring-c); }
+      to   { stroke-dashoffset: 0; }
+    }
+
+    .ring-done {
+      animation: ringFill 0.5s cubic-bezier(0.4,0,0.2,1) forwards !important;
+      stroke: var(--accent) !important;
+      filter: drop-shadow(0 0 10px var(--accent-glow)) !important;
+    }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      padding: 9px 16px;
+      border-radius: 3px;
+      z-index: 99;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      white-space: nowrap;
+      max-width: 90vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .toast.show { opacity: 1; }
+
+    /* ── TICK MARKS ── */
+    .ring-ticks { pointer-events: none; }
+    .tick-major { stroke: var(--border2); stroke-width: 2; }
+    .tick-minor { stroke: var(--muted2); stroke-width: 1; opacity: 0.4; }
+
+    /* ── INTERVAL RING GLOW ── */
+    #iv-phase-ring {
+      filter: drop-shadow(0 0 4px var(--accent-glow));
+      transition: stroke-dashoffset 0.25s linear, stroke 0.4s ease, filter 0.4s ease;
+    }
+    #iv-total-ring { transition: stroke-dashoffset 0.3s linear; }
+    #iv-phase-ring.rest-phase {
+      filter: drop-shadow(0 0 4px rgba(90,170,110,0.35));
+    }
+
+    svg { display: block; }
+
+    .hidden { display: none !important; }
+
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+    /* ── COUNTDOWN MODE TOGGLE ── */
+    .cd-mode-toggle {
+      display: flex;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 0.75rem;
+    }
+    .cd-mode-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: 'Azeret Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: color 0.15s, background 0.15s;
+    }
+    .cd-mode-btn.active { background: var(--accent-soft2); color: var(--accent); }
+
+    /* target time input */
+    .target-time-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .target-time-input {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: 'Azeret Mono', monospace;
+      font-weight: 100;
+      font-size: 42px;
+      text-align: center;
+      padding: 12px 16px;
+      outline: none;
+      width: 200px;
+      letter-spacing: 0.02em;
+      -webkit-appearance: none;
+      appearance: none;
+      color-scheme: dark;
+      font-variant-numeric: tabular-nums;
+    }
+    .target-time-input:focus { border-color: var(--accent); }
+    .target-time-hint {
+      font-size: 9px;
+      color: var(--muted2);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .target-tomorrow-badge {
+      font-size: 9px;
+      color: var(--accent-dim);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      min-height: 14px;
+    }
+
+    /* timer label input */
+    .timer-label-input {
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--border2);
+      color: var(--dim);
+      font-family: 'Azeret Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-align: center;
+      padding: 6px 10px;
+      outline: none;
+      width: 180px;
+      transition: border-color 0.2s;
+    }
+    .timer-label-input:focus { border-bottom-color: var(--accent); color: var(--text); }
+    .timer-label-input::placeholder { color: var(--muted2); }
+
+    /* ── INTERVAL TIMER ── */
+    .interval-setup {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.9rem;
+      width: 100%;
+      max-width: 320px;
+    }
+    .interval-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+    .interval-row-label {
+      font-size: 9px;
+      color: var(--muted2);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      width: 48px;
+      flex-shrink: 0;
+    }
+    .interval-row-label.work { color: var(--accent-dim); }
+    .interval-row-label.rest { color: #4a7a5a; }
+    .interval-input {
+      flex: 1;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: 'Azeret Mono', monospace;
+      font-weight: 200;
+      font-size: 22px;
+      text-align: center;
+      padding: 8px 6px;
+      outline: none;
+      -webkit-appearance: none;
+      font-variant-numeric: tabular-nums;
+    }
+    .interval-input:focus { border-color: var(--accent); }
+    .interval-input-unit {
+      font-size: 9px;
+      color: var(--muted2);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      width: 24px;
+    }
+    .rounds-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .rounds-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: none;
+      border: 1px solid var(--border2);
+      color: var(--dim);
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .rounds-btn:active { border-color: var(--accent); color: var(--accent); transform: scale(0.92); }
+    .rounds-display {
+      font-size: 28px;
+      font-weight: 100;
+      min-width: 48px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .interval-phase-label {
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      font-weight: 300;
+      min-height: 16px;
+    }
+    .interval-phase-label.work { color: var(--accent); }
+    .interval-phase-label.rest { color: var(--green); }
+
+    .interval-rounds-info {
+      font-size: 9px;
+      color: var(--muted2);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    /* round dots */
+    .round-dots {
+      display: flex;
+      gap: 6px;
+      margin-top: 0.5rem;
+    }
+    .round-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--border2);
+      transition: background 0.25s, transform 0.25s;
+    }
+    .round-dot.done { background: var(--accent-dim); }
+    .round-dot.current {
+      background: var(--accent);
+      transform: scale(1.4);
+      box-shadow: 0 0 6px var(--accent-glow);
+    }
+
+    /* ── PROGRESS WIDGET ── */
+    .progress-widget {
+      width: 100%;
+      max-width: 300px;
+      margin-top: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .prog-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .prog-label {
+      font-size: 8px;
+      color: var(--muted2);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      width: 32px;
+      flex-shrink: 0;
+    }
+    .prog-bar-wrap {
+      flex: 1;
+      height: 2px;
+      background: var(--border);
+      border-radius: 1px;
+      overflow: hidden;
+    }
+    .prog-bar-fill {
+      height: 100%;
+      border-radius: 1px;
+      background: var(--accent);
+      transition: width 1s linear;
+    }
+    .prog-bar-fill.week { background: #5a8a6a; }
+    .prog-bar-fill.year { background: #555; }
+    .prog-pct {
+      font-size: 9px;
+      color: var(--muted);
+      width: 32px;
+      text-align: right;
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── WAKE LOCK INDICATOR ── */
+    .wake-indicator {
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 0px) + 8px);
+      right: 12px;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 10;
+    }
+    .wake-indicator.active { opacity: 1; }
+
+    /* ── FLIP CLOCK ── */
+    .flip-clock {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+    }
+    .flip-group { display: flex; gap: 4px; }
+    .flip-sep {
+      font-family: 'Azeret Mono', monospace;
+      font-weight: 100;
+      font-size: clamp(28px, 9vw, 44px);
+      color: var(--muted2);
+      line-height: 1;
+      margin-bottom: 4px;
+      align-self: center;
+    }
+    .flip-card {
+      position: relative;
+      width: clamp(48px, 14vw, 68px);
+      height: clamp(64px, 18vw, 90px);
+      perspective: 400px;
+    }
+    .flip-top {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 50%;
+      background: #161616;
+      border-radius: 6px 6px 0 0;
+      overflow: hidden;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 2px;
+      border-bottom: 1px solid #0a0a0a;
+      box-shadow: 0 -1px 0 #222 inset;
+    }
+    .flip-bot {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 50%;
+      background: #111;
+      border-radius: 0 0 6px 6px;
+      overflow: hidden;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 2px;
+    }
+    .flip-top span, .flip-bot span,
+    .flip-fold-top span, .flip-fold-bot span {
+      font-family: 'Azeret Mono', monospace;
+      font-weight: 100;
+      font-size: clamp(36px, 11vw, 58px);
+      color: var(--text);
+      line-height: 1;
+      display: block;
+    }
+    .flip-top span { transform: translateY(50%); }
+    .flip-bot span { transform: translateY(-50%); }
+    .flip-fold {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 50%;
+      transform-origin: bottom center;
+      transform-style: preserve-3d;
+    }
+    .flip-fold.flipping {
+      animation: flipDown 0.35s ease-in forwards;
+    }
+    @keyframes flipDown {
+      0%   { transform: rotateX(0deg);    }
+      100% { transform: rotateX(-180deg); }
+    }
+    .flip-fold-top {
+      position: absolute;
+      inset: 0;
+      background: #1e1e1e;
+      border-radius: 6px 6px 0 0;
+      overflow: hidden;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 2px;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    }
+    .flip-fold-top span { transform: translateY(50%); }
+    .flip-fold-bot {
+      position: absolute;
+      inset: 0;
+      background: #111;
+      border-radius: 0 0 6px 6px;
+      overflow: hidden;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 2px;
+      transform: rotateX(180deg);
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    .flip-fold-bot span { transform: translateY(-50%); }
+    .flip-card::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0; right: 0;
+      height: 1px;
+      background: #0a0a0a;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    /* ── CLOCK MODE TOGGLE ── */
+    .clock-mode-toggle {
+      display: inline-flex;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 1.5rem;
+      padding: 2px;
+    }
+    .clock-mode-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: 'Azeret Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      cursor: pointer;
+      border-radius: 999px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .clock-mode-btn.active {
+      background: var(--accent-soft2);
+      color: var(--accent);
+    }
+
+    /* analog face */
+    .analog-face {
+      position: relative;
+      width: min(260px, 78vw);
+      height: min(260px, 78vw);
+    }
+    .analog-face svg { width:100%; height:100%; }
+
+    /* ── INSTALL PROMPT ── */
+    .install-prompt {
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      z-index: 100;
+      white-space: nowrap;
+      transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s;
+      opacity: 0;
+      pointer-events: none;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    }
+    .install-prompt.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+      pointer-events: all;
+    }
+    .install-prompt-text {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .install-prompt-text strong { color: var(--text); font-weight: 300; }
+    .install-btn {
+      background: none;
+      border: 1px solid var(--accent);
+      border-radius: 3px;
+      color: var(--accent);
+      font-family: 'Azeret Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 6px 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .install-btn:active { background: var(--accent-soft); }
+    .install-dismiss {
+      background: none;
+      border: none;
+      color: var(--muted2);
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      padding: 2px 4px;
+    }
+
+    /* ── UPDATE BANNER ── */
+    .update-banner {
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 0px) + 8px);
+      left: 50%;
+      transform: translateX(-50%) translateY(-60px);
+      background: var(--bg2);
+      border: 1px solid var(--accent-dim);
+      border-radius: 4px;
+      padding: 8px 14px;
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      z-index: 100;
+      cursor: pointer;
+      transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
+      white-space: nowrap;
+    }
+    .update-banner.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── WORLD CLOCK ── */
+    .world-list {
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .world-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 4px;
+      border-bottom: 1px solid var(--border);
+      animation: lapIn 0.25s ease-out;
+    }
+    .world-row:last-child { border-bottom: none; }
+    .world-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+    .world-city {
+      font-size: 13px;
+      color: var(--text);
+      font-weight: 300;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .world-meta {
+      font-size: 9px;
+      color: var(--muted2);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .world-time {
+      font-family: 'Azeret Mono', monospace;
+      font-weight: 200;
+      font-size: 26px;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+    .world-time .ampm {
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      margin-left: 3px;
+    }
+    .world-delta {
+      font-size: 9px;
+      color: var(--accent-dim);
+      letter-spacing: 0.1em;
+    }
+    .world-row.night .world-city::before {
+      content: '';
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--muted);
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    .world-row.day .world-city::before {
+      content: '';
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 4px var(--accent-glow);
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    .world-row.home { background: linear-gradient(90deg, var(--accent-soft), transparent); }
+
+    .world-add-btn {
+      background: none;
+      border: 1px dashed var(--border2);
+      border-radius: 4px;
+      color: var(--dim);
+      font-family: 'Azeret Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 10px 16px;
+      cursor: pointer;
+      margin-top: 1rem;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .world-add-btn:active { border-color: var(--accent); color: var(--accent); }
+
+    .world-remove {
+      background: none;
+      border: none;
+      color: var(--muted2);
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      padding: 4px 8px;
+      opacity: 0;
+      transition: opacity 0.2s, color 0.2s;
+    }
+    .world-row:hover .world-remove { opacity: 1; }
+    .world-remove:active { color: var(--red); }
+
+    /* ── ALARMS ── */
+    .alarm-list {
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .alarm-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 4px;
+      border-bottom: 1px solid var(--border);
+      animation: lapIn 0.25s ease-out;
+    }
+    .alarm-row:last-child { border-bottom: none; }
+    .alarm-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+    .alarm-time {
+      font-family: 'Azeret Mono', monospace;
+      font-weight: 100;
+      font-size: 32px;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .alarm-row.off .alarm-time { color: var(--muted); }
+    .alarm-label {
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .alarm-countdown {
+      font-size: 9px;
+      color: var(--accent-dim);
+      letter-spacing: 0.12em;
+    }
+    .alarm-row.off .alarm-label,
+    .alarm-row.off .alarm-countdown { color: var(--muted2); }
+
+    .alarm-controls { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+    /* toggle switch */
+    .toggle {
+      width: 36px;
+      height: 20px;
+      border-radius: 999px;
+      background: var(--border2);
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+      flex-shrink: 0;
+      border: none;
+      padding: 0;
+    }
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--dim);
+      transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1), background 0.2s;
+    }
+    .toggle.on { background: var(--accent-soft2); }
+    .toggle.on::after { transform: translateX(16px); background: var(--accent); }
+
+    .alarm-delete {
+      background: none;
+      border: none;
+      color: var(--muted2);
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      padding: 4px 6px;
+      transition: color 0.15s;
+    }
+    .alarm-delete:active { color: var(--red); }
+
+    .alarm-add-form {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      align-items: center;
+      width: 100%;
+      max-width: 320px;
+      padding: 1.5rem 0;
+    }
+
+    .alarm-empty {
+      color: var(--muted2);
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      text-align: center;
+      padding: 2rem 0;
+    }
+
+    /* ── SETTINGS SHEET ── */
+    .sheet-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s;
+    }
+    .sheet-backdrop.show { opacity: 1; pointer-events: all; }
+
+    .sheet {
+      position: fixed;
+      left: 0; right: 0;
+      bottom: 0;
+      background: var(--bg2);
+      border-top: 1px solid var(--border2);
+      border-radius: 12px 12px 0 0;
+      padding: 1.5rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom,0px));
+      z-index: 201;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+      max-width: 520px;
+      margin: 0 auto;
+    }
+    .sheet.show { transform: translateY(0); }
+    .sheet-handle {
+      width: 40px; height: 3px;
+      background: var(--border2);
+      border-radius: 2px;
+      margin: 0 auto 1rem;
+    }
+    .sheet-title {
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--dim);
+      text-align: center;
+      margin-bottom: 1.25rem;
+    }
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-label {
+      font-size: 11px;
+      color: var(--text);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 300;
+    }
+    .setting-sub {
+      font-size: 8px;
+      color: var(--muted2);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    /* theme swatches */
+    .theme-swatches { display: flex; gap: 8px; }
+    .swatch {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      border: 1px solid var(--border2);
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+    }
+    .swatch.selected { border-color: var(--text); transform: scale(1.1); }
+    .swatch:active { transform: scale(0.92); }
+
+    /* settings icon */
+    .top-actions {
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 0px) + 6px);
+      left: 12px;
+      display: flex;
+      gap: 6px;
+      z-index: 10;
+    }
+    .icon-btn {
+      background: none;
+      border: none;
+      color: var(--muted2);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .icon-btn:active { color: var(--accent); background: var(--accent-soft); }
+
+    /* history list */
+    .history-list {
+      width: 100%;
+      max-width: 320px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin-top: 0.75rem;
+    }
+    .history-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 2px;
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+      color: var(--dim);
+      font-variant-numeric: tabular-nums;
+    }
+    .history-row:last-child { border-bottom: none; }
+    .history-label {
+      color: var(--muted);
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .history-dur { color: var(--text); font-weight: 300; }
+    .history-when { color: var(--muted2); font-size: 9px; }
+    .history-empty {
+      color: var(--muted2);
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      text-align: center;
+      padding: 1rem 0;
+    }
+
+    /* ── ALARM MODAL (ringing) ── */
+    .alarm-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(10,10,10,0.95);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 300;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      padding: 2rem;
+    }
+    .alarm-modal.show { display: flex; animation: alarmRing 1s ease-out; }
+    @keyframes alarmRing {
+      0%   { opacity: 0; transform: scale(1.1); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    .alarm-modal-time {
+      font-family: 'Azeret Mono', monospace;
+      font-weight: 100;
+      font-size: clamp(60px, 20vw, 96px);
+      color: var(--accent);
+      letter-spacing: -0.02em;
+      line-height: 1;
+      animation: alarmPulse 1s ease-in-out infinite;
+      font-variant-numeric: tabular-nums;
+    }
+    @keyframes alarmPulse {
+      0%,100% { opacity: 1; filter: drop-shadow(0 0 20px var(--accent-glow)); }
+      50%     { opacity: 0.75; filter: drop-shadow(0 0 40px var(--accent-glow)); }
+    }
+    .alarm-modal-label {
+      font-size: 12px;
+      color: var(--text);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+    .alarm-modal-btns {
+      display: flex;
+      gap: 12px;
+      margin-top: 1rem;
+    }
+    .alarm-action-btn {
+      background: none;
+      border: 1px solid var(--border2);
+      color: var(--dim);
+      padding: 10px 22px;
+      border-radius: 999px;
+      font-family: 'Azeret Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+    }
+    .alarm-action-btn:active { transform: scale(0.95); }
+    .alarm-action-btn.primary { border-color: var(--accent); color: var(--accent); }
+    .alarm-action-btn.primary:active { background: var(--accent-soft); }
+
+    /* world clock picker dropdown */
+    .tz-picker {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-family: 'Azeret Mono', monospace;
+      font-size: 12px;
+      padding: 10px 14px;
+      border-radius: 4px;
+      outline: none;
+      width: 240px;
+      color-scheme: dark;
+      -webkit-appearance: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.2' fill='none' stroke-linecap='round'/></svg>");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+    .tz-picker:focus { border-color: var(--accent); }
+
+    .tz-picker-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    /* a tiny "now" tick for countdown phase */
+    .cd-eta {
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-top: 4px;
+      min-height: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="done-overlay" id="done-overlay"></div>
+<div class="done-burst" id="done-burst">
+  <svg viewBox="0 0 200 200"></svg>
+</div>
+<div class="wake-indicator" id="wake-indicator" title="Screen wake lock active"></div>
+
+<!-- top-left action buttons -->
+<div class="top-actions">
+  <button class="icon-btn" id="settings-btn" aria-label="Settings" title="Settings">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  </button>
+</div>
+
+<!-- Install prompt -->
+<div class="install-prompt" id="install-prompt">
+  <div class="install-prompt-text"><strong>Add to Home Screen</strong></div>
+  <button class="install-btn" id="install-btn">Install</button>
+  <button class="install-dismiss" id="install-dismiss" aria-label="Dismiss">×</button>
+</div>
+
+<!-- Update banner -->
+<div class="update-banner" id="update-banner" title="Tap to reload with update">
+  update available — tap to reload
+</div>
+
+<!-- Alarm ringing modal -->
+<div class="alarm-modal" id="alarm-modal">
+  <div class="alarm-modal-label" id="alarm-modal-label">alarm</div>
+  <div class="alarm-modal-time" id="alarm-modal-time">07:00</div>
+  <div class="alarm-modal-btns">
+    <button class="alarm-action-btn" id="alarm-snooze-btn">snooze 9m</button>
+    <button class="alarm-action-btn primary" id="alarm-stop-btn">stop</button>
+  </div>
+</div>
+
+<!-- Settings sheet -->
+<div class="sheet-backdrop" id="sheet-backdrop"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">Settings</div>
+
+  <div class="setting-row">
+    <div>
+      <div class="setting-label">Theme</div>
+      <div class="setting-sub">Accent color</div>
+    </div>
+    <div class="theme-swatches" id="theme-swatches">
+      <div class="swatch" data-theme="gold"   style="background:#c8a96e"></div>
+      <div class="swatch" data-theme="silver" style="background:#c7ccd4"></div>
+      <div class="swatch" data-theme="sage"   style="background:#8faf8a"></div>
+      <div class="swatch" data-theme="rose"   style="background:#c89a9a"></div>
+      <div class="swatch" data-theme="ice"    style="background:#8fb4d6"></div>
+    </div>
+  </div>
+
+  <div class="setting-row">
+    <div>
+      <div class="setting-label">Sound</div>
+      <div class="setting-sub">Beeps &amp; chimes</div>
+    </div>
+    <button class="toggle" id="toggle-sound" aria-label="Sound"></button>
+  </div>
+
+  <div class="setting-row">
+    <div>
+      <div class="setting-label">Vibration</div>
+      <div class="setting-sub">Haptic feedback</div>
+    </div>
+    <button class="toggle" id="toggle-vibrate" aria-label="Vibration"></button>
+  </div>
+
+  <div class="setting-row">
+    <div>
+      <div class="setting-label">Progress widget</div>
+      <div class="setting-sub">Day / week / year</div>
+    </div>
+    <button class="toggle" id="toggle-progress" aria-label="Progress widget"></button>
+  </div>
+
+  <div class="setting-row">
+    <div>
+      <div class="setting-label">24-hour time</div>
+      <div class="setting-sub">Flip clock format</div>
+    </div>
+    <button class="toggle" id="toggle-24h" aria-label="24-hour format"></button>
+  </div>
+
+  <div class="setting-row">
+    <div>
+      <div class="setting-label">Seconds</div>
+      <div class="setting-sub">Show on flip clock</div>
+    </div>
+    <button class="toggle" id="toggle-seconds" aria-label="Show seconds"></button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="app">
+
+  <!-- TABS -->
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-panel="time"      onclick="switchTab('time')">Clock</button>
+    <button class="tab"         data-panel="world"     onclick="switchTab('world')">World</button>
+    <button class="tab"         data-panel="alarms"    onclick="switchTab('alarms')">Alarms</button>
+    <button class="tab"         data-panel="countdown" onclick="switchTab('countdown')">Timer</button>
+    <button class="tab"         data-panel="interval"  onclick="switchTab('interval')">Interval</button>
+    <button class="tab"         data-panel="chrono"    onclick="switchTab('chrono')">Chrono</button>
+  </nav>
+
+  <div class="panels" id="panels">
+
+    <!-- ── TIME OF DAY (FLIP + ANALOG) ── -->
+    <div class="panel active" id="panel-time" style="justify-content:flex-start;padding-top:1.5rem">
+
+      <!-- FLIP CLOCK -->
+      <div class="flip-clock" id="flip-clock-wrap">
+        <div class="flip-group">
+          <div class="flip-card" id="flip-h1">
+            <div class="flip-top"><span id="fh1-top">0</span></div>
+            <div class="flip-bot"><span id="fh1-bot">0</span></div>
+            <div class="flip-fold" id="fold-h1">
+              <div class="flip-fold-top"><span id="fold-h1-top">0</span></div>
+              <div class="flip-fold-bot"><span id="fold-h1-bot">0</span></div>
+            </div>
+          </div>
+          <div class="flip-card" id="flip-h2">
+            <div class="flip-top"><span id="fh2-top">0</span></div>
+            <div class="flip-bot"><span id="fh2-bot">0</span></div>
+            <div class="flip-fold" id="fold-h2">
+              <div class="flip-fold-top"><span id="fold-h2-top">0</span></div>
+              <div class="flip-fold-bot"><span id="fold-h2-bot">0</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flip-sep">:</div>
+
+        <div class="flip-group">
+          <div class="flip-card" id="flip-m1">
+            <div class="flip-top"><span id="fm1-top">0</span></div>
+            <div class="flip-bot"><span id="fm1-bot">0</span></div>
+            <div class="flip-fold" id="fold-m1">
+              <div class="flip-fold-top"><span id="fold-m1-top">0</span></div>
+              <div class="flip-fold-bot"><span id="fold-m1-bot">0</span></div>
+            </div>
+          </div>
+          <div class="flip-card" id="flip-m2">
+            <div class="flip-top"><span id="fm2-top">0</span></div>
+            <div class="flip-bot"><span id="fm2-bot">0</span></div>
+            <div class="flip-fold" id="fold-m2">
+              <div class="flip-fold-top"><span id="fold-m2-top">0</span></div>
+              <div class="flip-fold-bot"><span id="fold-m2-bot">0</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flip-sep" id="flip-sep-sec">:</div>
+
+        <div class="flip-group" id="flip-group-sec">
+          <div class="flip-card" id="flip-s1">
+            <div class="flip-top"><span id="fs1-top">0</span></div>
+            <div class="flip-bot"><span id="fs1-bot">0</span></div>
+            <div class="flip-fold" id="fold-s1">
+              <div class="flip-fold-top"><span id="fold-s1-top">0</span></div>
+              <div class="flip-fold-bot"><span id="fold-s1-bot">0</span></div>
+            </div>
+          </div>
+          <div class="flip-card" id="flip-s2">
+            <div class="flip-top"><span id="fs2-top">0</span></div>
+            <div class="flip-bot"><span id="fs2-bot">0</span></div>
+            <div class="flip-fold" id="fold-s2">
+              <div class="flip-fold-top"><span id="fold-s2-top">0</span></div>
+              <div class="flip-fold-bot"><span id="fold-s2-bot">0</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ANALOG CLOCK (toggleable) -->
+      <div class="analog-face hidden" id="analog-face">
+        <svg viewBox="0 0 200 200">
+          <circle cx="100" cy="100" r="92" fill="none" stroke="var(--border)" stroke-width="2"/>
+          <circle cx="100" cy="100" r="88" fill="none" stroke="var(--accent)" stroke-width="0.5" opacity="0.3"/>
+          <g id="analog-ticks"></g>
+          <g id="analog-numerals"></g>
+          <line class="hand hand-hour"   id="hand-hour"   x1="100" y1="100" x2="100" y2="55"/>
+          <line class="hand hand-minute" id="hand-minute" x1="100" y1="100" x2="100" y2="40"/>
+          <line class="hand hand-second" id="hand-second" x1="100" y1="110" x2="100" y2="30"/>
+          <circle class="hand-pivot" cx="100" cy="100" r="3"/>
+        </svg>
+      </div>
+
+      <div class="tod-date" id="tod-date" style="margin-top:1.25rem"></div>
+      <div class="tod-sub" id="tod-sub" style="margin-top:4px"></div>
+
+      <div class="clock-mode-toggle">
+        <button class="clock-mode-btn active" data-mode="flip"   onclick="setClockMode('flip')">Flip</button>
+        <button class="clock-mode-btn"        data-mode="analog" onclick="setClockMode('analog')">Analog</button>
+      </div>
+
+      <!-- PROGRESS WIDGET -->
+      <div class="progress-widget" id="progress-widget" style="margin-top:1.25rem">
+        <div class="prog-row">
+          <span class="prog-label">day</span>
+          <div class="prog-bar-wrap"><div class="prog-bar-fill" id="prog-day" style="width:0%"></div></div>
+          <span class="prog-pct" id="prog-day-pct">0%</span>
+        </div>
+        <div class="prog-row">
+          <span class="prog-label">week</span>
+          <div class="prog-bar-wrap"><div class="prog-bar-fill week" id="prog-week" style="width:0%"></div></div>
+          <span class="prog-pct" id="prog-week-pct">0%</span>
+        </div>
+        <div class="prog-row">
+          <span class="prog-label">year</span>
+          <div class="prog-bar-wrap"><div class="prog-bar-fill year" id="prog-year" style="width:0%"></div></div>
+          <span class="prog-pct" id="prog-year-pct">0%</span>
+        </div>
+      </div>
+
+      <button onclick="toggleWakeLock()" id="wake-btn" style="margin-top:1rem;background:none;border:none;font-family:'Azeret Mono',monospace;font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted2);cursor:pointer;padding:4px 8px">
+        wake lock off
+      </button>
+
+    </div>
+
+    <!-- ── WORLD CLOCK ── -->
+    <div class="panel" id="panel-world" style="justify-content:flex-start;padding-top:1.5rem">
+      <div class="clock-label" style="margin-bottom:1rem">World Clock</div>
+      <div class="world-list" id="world-list"></div>
+      <button class="world-add-btn" id="world-add-btn">+ Add City</button>
+
+      <!-- picker form, hidden by default -->
+      <div id="world-picker" class="hidden" style="margin-top:1rem;display:flex;flex-direction:column;gap:10px;align-items:center">
+        <div class="target-time-hint">choose a city</div>
+        <select class="tz-picker" id="world-tz-select"></select>
+        <div style="display:flex;gap:10px;margin-top:4px">
+          <button class="preset-btn" onclick="hideWorldPicker()">Cancel</button>
+          <button class="preset-btn" onclick="addWorldTz()" style="border-color:var(--accent);color:var(--accent)">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ALARMS ── -->
+    <div class="panel" id="panel-alarms" style="justify-content:flex-start;padding-top:1.5rem">
+
+      <!-- List of alarms -->
+      <div id="alarms-list-wrap" style="width:100%;max-width:360px">
+        <div class="alarm-list" id="alarm-list"></div>
+        <div class="alarm-empty hidden" id="alarm-empty">No alarms</div>
+        <button class="world-add-btn" id="alarm-add-btn" style="margin:1.25rem auto 0;display:block">+ New Alarm</button>
+      </div>
+
+      <!-- Add alarm form -->
+      <div id="alarm-add-form" class="alarm-add-form hidden">
+        <div class="target-time-hint">Alarm time</div>
+        <input class="target-time-input" id="alarm-time-input" type="time" value="07:00"/>
+        <input class="timer-label-input" id="alarm-label-input" type="text" placeholder="label (optional)" maxlength="40"/>
+        <div style="display:flex;gap:10px;margin-top:0.5rem">
+          <button class="preset-btn" onclick="cancelAlarmForm()">Cancel</button>
+          <button class="preset-btn" onclick="saveAlarm()" style="border-color:var(--accent);color:var(--accent)">Save</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── COUNTDOWN ── -->
+    <div class="panel" id="panel-countdown" style="justify-content:flex-start;align-items:center;padding-top:1.25rem">
+      <!-- SETUP -->
+      <div id="cd-setup" class="countdown-setup">
+        <div class="cd-mode-toggle">
+          <button class="cd-mode-btn active" id="cd-mode-duration" onclick="setCdMode('duration')">duration</button>
+          <button class="cd-mode-btn"        id="cd-mode-target"   onclick="setCdMode('target')">until time</button>
+        </div>
+
+        <!-- DURATION MODE -->
+        <div id="cd-duration-inputs">
+          <div class="time-inputs">
+            <div class="time-seg">
+              <div class="time-seg-label">hr</div>
+              <input class="time-seg-input" id="cd-h" type="number" min="0" max="23" value="0" placeholder="00"/>
+            </div>
+            <div class="time-colon">:</div>
+            <div class="time-seg">
+              <div class="time-seg-label">min</div>
+              <input class="time-seg-input" id="cd-m" type="number" min="0" max="59" value="5" placeholder="00"/>
+            </div>
+            <div class="time-colon">:</div>
+            <div class="time-seg">
+              <div class="time-seg-label">sec</div>
+              <input class="time-seg-input" id="cd-s" type="number" min="0" max="59" value="0" placeholder="00"/>
+            </div>
+          </div>
+          <div class="preset-row" style="margin-top:0.9rem">
+            <button class="preset-btn" onclick="setPreset(1,0,0)">1h</button>
+            <button class="preset-btn" onclick="setPreset(0,45,0)">45m</button>
+            <button class="preset-btn" onclick="setPreset(0,30,0)">30m</button>
+            <button class="preset-btn" onclick="setPreset(0,25,0)">25m</button>
+            <button class="preset-btn" onclick="setPreset(0,15,0)">15m</button>
+            <button class="preset-btn" onclick="setPreset(0,10,0)">10m</button>
+            <button class="preset-btn" onclick="setPreset(0,5,0)">5m</button>
+            <button class="preset-btn" onclick="setPreset(0,1,0)">1m</button>
+          </div>
+        </div>
+
+        <!-- TARGET TIME MODE -->
+        <div id="cd-target-inputs" class="target-time-wrap hidden">
+          <div class="target-time-hint">count down until</div>
+          <input class="target-time-input" id="cd-target-time" type="time" value="15:00"/>
+          <div class="target-tomorrow-badge" id="cd-target-badge"></div>
+        </div>
+
+        <input class="timer-label-input" id="cd-label-input" type="text" placeholder="label (optional)" maxlength="30"/>
+
+        <button class="ctrl-btn primary" style="margin-top:0.5rem" onclick="cdStart()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </button>
+
+        <!-- Recent timers -->
+        <div id="cd-history-wrap" class="hidden" style="width:100%">
+          <div class="clock-label" style="margin-top:1rem;margin-bottom:0.25rem">recent</div>
+          <div class="history-list" id="cd-history"></div>
+        </div>
+      </div>
+
+      <!-- RUNNING -->
+      <div id="cd-running" class="hidden" style="display:flex;flex-direction:column;align-items:center;gap:0">
+        <div class="clock-face">
+          <svg class="clock-ring-svg" viewBox="0 0 200 200">
+            <circle class="ring-track" cx="100" cy="100" r="92"/>
+            <g class="ring-ticks" id="cd-ticks"></g>
+            <circle class="ring-progress" id="cd-ring" cx="100" cy="100" r="92"
+              stroke-dasharray="578" stroke-dashoffset="0"/>
+          </svg>
+          <div class="clock-inner">
+            <div class="clock-label" id="cd-running-label">remaining</div>
+            <div class="clock-display" id="cd-display">00:00</div>
+            <div class="clock-ms" id="cd-ms"></div>
+            <div class="clock-sublabel" id="cd-pct"></div>
+            <div class="cd-eta" id="cd-eta"></div>
+          </div>
+        </div>
+        <div class="controls">
+          <button class="ctrl-btn" id="cd-reset-btn" onclick="cdReset()" title="Cancel">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.53"/></svg>
+          </button>
+          <button class="ctrl-btn primary" id="cd-play-btn" onclick="cdToggle()">
+            <svg id="cd-play-icon" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </button>
+          <button class="ctrl-btn" onclick="cdAddMin()" title="+1 minute">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── INTERVAL TIMER ── -->
+    <div class="panel" id="panel-interval" style="justify-content:flex-start;align-items:center;padding-top:1.25rem">
+
+      <!-- SETUP -->
+      <div id="iv-setup" class="interval-setup">
+        <div class="clock-label" style="margin-bottom:0.25rem">interval timer</div>
+
+        <div class="interval-row">
+          <span class="interval-row-label work">work</span>
+          <input class="interval-input" id="iv-work" type="number" min="1" max="3600" value="25"/>
+          <span class="interval-input-unit">min</span>
+        </div>
+        <div class="interval-row">
+          <span class="interval-row-label rest">rest</span>
+          <input class="interval-input" id="iv-rest" type="number" min="1" max="3600" value="5"/>
+          <span class="interval-input-unit">min</span>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:0.25rem">
+          <div class="clock-label">rounds</div>
+          <div class="rounds-row">
+            <button class="rounds-btn" onclick="ivChangeRounds(-1)">−</button>
+            <div class="rounds-display" id="iv-rounds-display">4</div>
+            <button class="rounds-btn" onclick="ivChangeRounds(1)">+</button>
+          </div>
+        </div>
+
+        <div class="preset-row" style="margin-top:0.25rem">
+          <button class="preset-btn" onclick="ivPreset(25,5,4)">Pomodoro</button>
+          <button class="preset-btn" onclick="ivPreset(45,15,3)">45/15</button>
+          <button class="preset-btn" onclick="ivPreset(50,10,4)">50/10</button>
+          <button class="preset-btn" onclick="ivPresetTabata()">Tabata</button>
+          <button class="preset-btn" onclick="ivPreset(1,1,5)">1/1</button>
+        </div>
+
+        <button class="ctrl-btn primary" style="margin-top:0.5rem" onclick="ivStart()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </button>
+      </div>
+
+      <!-- RUNNING -->
+      <div id="iv-running" class="hidden" style="display:flex;flex-direction:column;align-items:center;gap:0">
+        <div class="clock-face">
+          <svg class="clock-ring-svg" viewBox="0 0 200 200">
+            <circle fill="none" stroke="#1a1a1a" stroke-width="2" cx="100" cy="100" r="92"/>
+            <circle class="ring-progress" id="iv-total-ring" cx="100" cy="100" r="92"
+              stroke-dasharray="578" stroke-dashoffset="578" stroke="var(--muted2)" style="transition:stroke-dashoffset 0.3s linear"/>
+            <circle fill="none" stroke="#161616" stroke-width="2" cx="100" cy="100" r="78"/>
+            <circle class="ring-progress" id="iv-phase-ring" cx="100" cy="100" r="78"
+              stroke-dasharray="490" stroke-dashoffset="0" style="transition:stroke-dashoffset 0.25s linear"/>
+          </svg>
+          <div class="clock-inner">
+            <div class="interval-phase-label work" id="iv-phase-label">work</div>
+            <div class="clock-display" id="iv-display">00:00</div>
+            <div class="clock-ms"></div>
+            <div class="interval-rounds-info" id="iv-rounds-info">round 1 of 4</div>
+          </div>
+        </div>
+
+        <div class="round-dots" id="iv-round-dots"></div>
+
+        <div class="controls" style="margin-top:1rem">
+          <button class="ctrl-btn" onclick="ivReset()" title="Stop">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.53"/></svg>
+          </button>
+          <button class="ctrl-btn primary" id="iv-play-btn" onclick="ivToggle()">
+            <svg id="iv-play-icon" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </button>
+          <button class="ctrl-btn" onclick="ivSkip()" title="Skip phase">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── CHRONOMETER ── -->
+    <div class="panel" id="panel-chrono">
+      <div class="clock-face">
+        <svg class="clock-ring-svg" viewBox="0 0 200 200">
+          <circle class="ring-track" cx="100" cy="100" r="92"/>
+          <g class="ring-ticks" id="chrono-ticks"></g>
+          <circle class="ring-progress chrono" id="chrono-ring" cx="100" cy="100" r="92"
+            stroke-dasharray="578" stroke-dashoffset="578"/>
+        </svg>
+        <div class="clock-inner">
+          <div class="clock-label" id="chrono-label">ready</div>
+          <div class="clock-display" id="chrono-display">00:00</div>
+          <div class="clock-ms" id="chrono-ms">.000</div>
+          <div class="clock-sublabel" id="chrono-lap-label"></div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="ctrl-btn" id="chrono-lap-btn" onclick="chronoLap()" disabled title="Lap">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </button>
+        <button class="ctrl-btn primary" id="chrono-play-btn" onclick="chronoToggle()">
+          <svg id="chrono-play-icon" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </button>
+        <button class="ctrl-btn" id="chrono-reset-btn" onclick="chronoReset()" disabled title="Reset">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.53"/></svg>
+        </button>
+      </div>
+
+      <div class="laps-wrap" id="laps-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────
+//  PERSISTENT PREFERENCES
+// ─────────────────────────────────────────────────────
+const STORE_KEY = 'clock-prefs-v2';
+const defaults = {
+  theme: 'gold',
+  sound: true,
+  vibrate: true,
+  showProgress: true,
+  use24h: true,
+  showSeconds: true,
+  clockMode: 'flip',
+  lastTab: 'time',
+  cdLast: { h: 0, m: 5, s: 0, label: '' },
+  ivLast: { work: 25, rest: 5, rounds: 4 },
+  worldTzs: ['Europe/London', 'America/New_York', 'Asia/Tokyo'],
+  alarms: [], // {id, time:"HH:MM", label, enabled}
+  cdHistory: [] // {label, ms, when}
+};
+let prefs;
+try { prefs = { ...defaults, ...JSON.parse(localStorage.getItem(STORE_KEY) || '{}') }; }
+catch { prefs = { ...defaults }; }
+// ensure deep merge of nested objects
+prefs.cdLast = { ...defaults.cdLast, ...(prefs.cdLast || {}) };
+prefs.ivLast = { ...defaults.ivLast, ...(prefs.ivLast || {}) };
+
+function savePrefs() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(prefs)); } catch {}
+}
+
+// ─────────────────────────────────────────────────────
+//  THEME
+// ─────────────────────────────────────────────────────
+function applyTheme(t) {
+  prefs.theme = t;
+  if (t === 'gold') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', t);
+  document.querySelectorAll('.swatch').forEach(s =>
+    s.classList.toggle('selected', s.dataset.theme === t)
+  );
+  savePrefs();
+}
+
+// ─────────────────────────────────────────────────────
+//  TAB SWITCHING  (+ swipe)
+// ─────────────────────────────────────────────────────
+const TAB_ORDER = ['time','world','alarms','countdown','interval','chrono'];
+
+function switchTab(id) {
+  const prev = document.querySelector('.panel.active');
+  const next = document.getElementById('panel-' + id);
+  if (prev && prev !== next) {
+    prev.classList.add('exit');
+    prev.classList.remove('active');
+    setTimeout(() => prev.classList.remove('exit'), 300);
+  }
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.panel === id));
+  requestAnimationFrame(() => {
+    if (next) next.classList.add('active');
+  });
+  prefs.lastTab = id;
+  savePrefs();
+  // ensure the active tab is scrolled into view on mobile
+  const btn = document.querySelector(`.tab[data-panel="${id}"]`);
+  btn?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+}
+
+// swipe between tabs
+let touchStart = null;
+document.getElementById('panels').addEventListener('touchstart', e => {
+  if (e.touches.length !== 1) return;
+  touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+}, { passive: true });
+
+document.getElementById('panels').addEventListener('touchend', e => {
+  if (!touchStart) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - touchStart.x;
+  const dy = t.clientY - touchStart.y;
+  const dt = Date.now() - touchStart.t;
+  touchStart = null;
+  if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) || dt > 500) return;
+  const cur = document.querySelector('.tab.active')?.dataset.panel;
+  const idx = TAB_ORDER.indexOf(cur);
+  if (idx < 0) return;
+  const nextIdx = dx < 0 ? Math.min(TAB_ORDER.length - 1, idx + 1) : Math.max(0, idx - 1);
+  if (nextIdx !== idx) switchTab(TAB_ORDER[nextIdx]);
+}, { passive: true });
+
+// ─────────────────────────────────────────────────────
+//  TOAST
+// ─────────────────────────────────────────────────────
+let toastTmr;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTmr);
+  toastTmr = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ─────────────────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────────────────
+function pad(n, w = 2) { return String(Math.floor(n)).padStart(w, '0'); }
+
+function fmt(ms) {
+  ms = Math.max(0, ms);
+  const h  = Math.floor(ms / 3600000);
+  const m  = Math.floor((ms % 3600000) / 60000);
+  const s  = Math.floor((ms % 60000) / 1000);
+  const cs = Math.floor((ms % 1000) / 10);
+  const main = h > 0 ? pad(h) + ':' + pad(m) + ':' + pad(s) : pad(m) + ':' + pad(s);
+  return { main, ms: '.' + pad(cs) };
+}
+
+function circumference(r) { return +(2 * Math.PI * r).toFixed(2); }
+
+function fmtDuration(ms) {
+  if (ms >= 3600000) {
+    const h = Math.floor(ms/3600000), m = Math.round((ms%3600000)/60000);
+    return m ? `${h}h ${m}m` : `${h}h`;
+  }
+  if (ms >= 60000) return Math.round(ms/60000) + 'm';
+  return Math.round(ms/1000) + 's';
+}
+
+function relWhen(ts) {
+  const diff = Date.now() - ts;
+  if (diff < 60000)    return 'just now';
+  if (diff < 3600000)  return Math.floor(diff/60000) + 'm ago';
+  if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
+  return Math.floor(diff/86400000) + 'd ago';
+}
+
+// ─────────────────────────────────────────────────────
+//  TICK MARKS
+// ─────────────────────────────────────────────────────
+function buildTicks(svgGroupId, r, cx, cy, count) {
+  const g = document.getElementById(svgGroupId);
+  if (!g) return;
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * 2 * Math.PI - Math.PI / 2;
+    const isMajor = i % (count / 12) === 0;
+    const outer = r + 1;
+    const inner = r - (isMajor ? 8 : 4);
+    const x1 = cx + outer * Math.cos(angle);
+    const y1 = cy + outer * Math.sin(angle);
+    const x2 = cx + inner * Math.cos(angle);
+    const y2 = cy + inner * Math.sin(angle);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1.toFixed(2));
+    line.setAttribute('y1', y1.toFixed(2));
+    line.setAttribute('x2', x2.toFixed(2));
+    line.setAttribute('y2', y2.toFixed(2));
+    line.setAttribute('class', isMajor ? 'tick-major' : 'tick-minor');
+    g.appendChild(line);
+  }
+}
+buildTicks('cd-ticks', 92, 100, 100, 60);
+buildTicks('chrono-ticks', 92, 100, 100, 60);
+
+// ─────────────────────────────────────────────────────
+//  DONE OVERLAY + BURST
+// ─────────────────────────────────────────────────────
+function fireDoneOverlay() {
+  const el = document.getElementById('done-overlay');
+  el.classList.remove('fire');
+  void el.offsetWidth;
+  el.classList.add('fire');
+  setTimeout(() => el.classList.remove('fire'), 900);
+  fireDoneBurst();
+}
+
+function fireDoneBurst() {
+  const host = document.getElementById('done-burst');
+  const svg = host.querySelector('svg');
+  svg.innerHTML = '';
+  const N = 24;
+  for (let i = 0; i < N; i++) {
+    const angle = (i / N) * 2 * Math.PI;
+    const innerR = 28 + Math.random() * 10;
+    const outerR = 70 + Math.random() * 18;
+    const x1 = 100 + innerR * Math.cos(angle);
+    const y1 = 100 + innerR * Math.sin(angle);
+    const x2 = 100 + outerR * Math.cos(angle);
+    const y2 = 100 + outerR * Math.sin(angle);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1.toFixed(2));
+    line.setAttribute('y1', y1.toFixed(2));
+    line.setAttribute('x2', x2.toFixed(2));
+    line.setAttribute('y2', y2.toFixed(2));
+    line.setAttribute('class', 'burst-ray');
+    line.style.animationDelay = (Math.random() * 0.1).toFixed(2) + 's';
+    svg.appendChild(line);
+  }
+  host.classList.add('fire');
+  setTimeout(() => host.classList.remove('fire'), 1000);
+}
+
+function doneRingFill(ringId, circumferenceVal) {
+  const ring = document.getElementById(ringId);
+  if (!ring) return;
+  ring.style.setProperty('--ring-c', circumferenceVal);
+  ring.classList.add('ring-done');
+  setTimeout(() => ring.classList.remove('ring-done'), 600);
+}
+
+// ─────────────────────────────────────────────────────
+//  WAKE LOCK
+// ─────────────────────────────────────────────────────
+let wakeLock = null;
+let wakeLockEnabled = false;
+
+async function toggleWakeLock() {
+  if (!('wakeLock' in navigator)) { toast('Wake lock not supported'); return; }
+  if (wakeLockEnabled) {
+    wakeLockEnabled = false;
+    if (wakeLock) { try { await wakeLock.release(); } catch {} wakeLock = null; }
+    document.getElementById('wake-indicator').classList.remove('active');
+    document.getElementById('wake-btn').textContent = 'wake lock off';
+    document.getElementById('wake-btn').style.color = 'var(--muted2)';
+  } else {
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLockEnabled = true;
+      document.getElementById('wake-indicator').classList.add('active');
+      document.getElementById('wake-btn').textContent = 'wake lock on';
+      document.getElementById('wake-btn').style.color = 'var(--accent)';
+      wakeLock.addEventListener('release', () => {
+        if (wakeLockEnabled) { wakeLockEnabled = false; document.getElementById('wake-indicator').classList.remove('active'); }
+      });
+    } catch(e) { toast('Could not acquire wake lock'); }
+  }
+}
+
+document.addEventListener('visibilitychange', async () => {
+  if (wakeLockEnabled && document.visibilityState === 'visible') {
+    try { wakeLock = await navigator.wakeLock.request('screen'); } catch {}
+  }
+});
+
+// ─────────────────────────────────────────────────────
+//  FLIP CLOCK / ANALOG CLOCK
+// ─────────────────────────────────────────────────────
+const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const flipState = { h1:null, h2:null, m1:null, m2:null, s1:null, s2:null };
+
+function flipDigit(id, newVal) {
+  const topSpan = document.getElementById('f' + id + '-top');
+  const botSpan = document.getElementById('f' + id + '-bot');
+  const fold    = document.getElementById('fold-' + id);
+  const foldTop = document.getElementById('fold-' + id + '-top');
+  const foldBot = document.getElementById('fold-' + id + '-bot');
+
+  const oldVal = flipState[id];
+  if (oldVal === newVal) return;
+
+  foldTop.textContent = oldVal !== null ? oldVal : newVal;
+  foldBot.textContent = newVal;
+  botSpan.textContent = newVal;
+
+  fold.classList.remove('flipping');
+  void fold.offsetWidth;
+  fold.classList.add('flipping');
+
+  setTimeout(() => {
+    topSpan.textContent = newVal;
+    fold.classList.remove('flipping');
+    foldTop.textContent = newVal;
+  }, 360);
+
+  flipState[id] = newVal;
+}
+
+// Build analog numerals + ticks
+(function buildAnalog() {
+  const ticks = document.getElementById('analog-ticks');
+  const nums  = document.getElementById('analog-numerals');
+  for (let i = 0; i < 60; i++) {
+    const angle = (i / 60) * 2 * Math.PI - Math.PI / 2;
+    const isMajor = i % 5 === 0;
+    const inner = 92 - (isMajor ? 7 : 3);
+    const x1 = 100 + 92 * Math.cos(angle);
+    const y1 = 100 + 92 * Math.sin(angle);
+    const x2 = 100 + inner * Math.cos(angle);
+    const y2 = 100 + inner * Math.sin(angle);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+    line.setAttribute('class', isMajor ? 'tick-major' : 'tick-minor');
+    ticks.appendChild(line);
+  }
+  for (let h = 1; h <= 12; h++) {
+    const angle = (h / 12) * 2 * Math.PI - Math.PI / 2;
+    const r = 76;
+    const x = 100 + r * Math.cos(angle);
+    const y = 100 + r * Math.sin(angle) + 3; // text baseline tweak
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', x); t.setAttribute('y', y);
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('class', 'hour-numeral');
+    t.textContent = h;
+    nums.appendChild(t);
+  }
+})();
+
+function updateAnalog(now) {
+  const h = now.getHours() % 12;
+  const m = now.getMinutes();
+  const s = now.getSeconds();
+  const ms = now.getMilliseconds();
+  const secAngle = (s + ms/1000) * 6;
+  const minAngle = m * 6 + s * 0.1;
+  const hourAngle = h * 30 + m * 0.5;
+  document.getElementById('hand-hour').style.transform   = `rotate(${hourAngle}deg)`;
+  document.getElementById('hand-minute').style.transform = `rotate(${minAngle}deg)`;
+  document.getElementById('hand-second').style.transform = `rotate(${secAngle}deg)`;
+}
+
+function tickTOD() {
+  const now = new Date();
+  let h = now.getHours();
+  const m = now.getMinutes();
+  const s = now.getSeconds();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  if (!prefs.use24h) {
+    h = h % 12;
+    if (h === 0) h = 12;
+  }
+
+  const hs = pad(h);
+  const ms = pad(m);
+  const ss = pad(s);
+  flipDigit('h1', hs[0]); flipDigit('h2', hs[1]);
+  flipDigit('m1', ms[0]); flipDigit('m2', ms[1]);
+  flipDigit('s1', ss[0]); flipDigit('s2', ss[1]);
+
+  document.getElementById('tod-date').textContent =
+    DAYS[now.getDay()] + ', ' + MONTHS[now.getMonth()] + ' ' + now.getDate();
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  document.getElementById('tod-sub').textContent =
+    (prefs.use24h ? '' : ampm + ' · ') + tz;
+
+  if (prefs.clockMode === 'analog') updateAnalog(now);
+  updateProgress(now);
+  updateWorldList(now);
+  checkAlarms(now);
+}
+
+setInterval(tickTOD, 1000);
+// For smooth second hand, also run on a faster interval when analog is shown
+setInterval(() => {
+  if (prefs.clockMode === 'analog' && document.getElementById('panel-time').classList.contains('active')) {
+    updateAnalog(new Date());
+  }
+}, 100);
+
+// ─────────────────────────────────────────────────────
+//  CLOCK MODE (flip / analog)
+// ─────────────────────────────────────────────────────
+function setClockMode(mode) {
+  prefs.clockMode = mode;
+  savePrefs();
+  document.querySelectorAll('.clock-mode-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.mode === mode)
+  );
+  document.getElementById('flip-clock-wrap').classList.toggle('hidden', mode !== 'flip');
+  document.getElementById('analog-face').classList.toggle('hidden', mode !== 'analog');
+}
+
+// ─────────────────────────────────────────────────────
+//  PROGRESS WIDGET
+// ─────────────────────────────────────────────────────
+function updateProgress(now) {
+  const dayPct = (now.getHours()*3600 + now.getMinutes()*60 + now.getSeconds()) / 86400;
+  const dow = now.getDay();
+  const weekSec = ((dow===0?7:dow)-1)*86400 + now.getHours()*3600 + now.getMinutes()*60 + now.getSeconds();
+  const weekPct = weekSec / (7*86400);
+  const start = new Date(now.getFullYear(), 0, 1);
+  const end   = new Date(now.getFullYear()+1, 0, 1);
+  const yearPct = (now - start) / (end - start);
+  function set(id, pctId, pct) {
+    const p = Math.min(100, +(pct*100).toFixed(1));
+    document.getElementById(id).style.width = p + '%';
+    document.getElementById(pctId).textContent = p + '%';
+  }
+  set('prog-day',  'prog-day-pct',  dayPct);
+  set('prog-week', 'prog-week-pct', weekPct);
+  set('prog-year', 'prog-year-pct', yearPct);
+}
+
+// ─────────────────────────────────────────────────────
+//  WORLD CLOCK
+// ─────────────────────────────────────────────────────
+// A curated but generous list of common IANA timezones
+const TZ_OPTIONS = [
+  'UTC',
+  'Europe/London','Europe/Dublin','Europe/Paris','Europe/Berlin','Europe/Madrid','Europe/Rome',
+  'Europe/Amsterdam','Europe/Stockholm','Europe/Helsinki','Europe/Athens','Europe/Istanbul','Europe/Moscow',
+  'Africa/Cairo','Africa/Lagos','Africa/Johannesburg','Africa/Nairobi','Africa/Casablanca',
+  'Asia/Dubai','Asia/Tehran','Asia/Karachi','Asia/Kolkata','Asia/Kathmandu','Asia/Dhaka',
+  'Asia/Bangkok','Asia/Jakarta','Asia/Singapore','Asia/Hong_Kong','Asia/Shanghai','Asia/Taipei',
+  'Asia/Tokyo','Asia/Seoul','Asia/Manila',
+  'Australia/Perth','Australia/Sydney','Australia/Melbourne','Australia/Brisbane','Australia/Adelaide',
+  'Pacific/Auckland','Pacific/Fiji','Pacific/Honolulu',
+  'America/Anchorage','America/Los_Angeles','America/Vancouver','America/Denver','America/Phoenix',
+  'America/Chicago','America/Mexico_City','America/New_York','America/Toronto','America/Halifax',
+  'America/Sao_Paulo','America/Argentina/Buenos_Aires','America/Bogota','America/Lima','America/Santiago',
+  'Atlantic/Reykjavik','Atlantic/Azores'
+];
+
+function cityFromTz(tz) {
+  const parts = tz.split('/');
+  return parts[parts.length - 1].replace(/_/g, ' ');
+}
+
+function tzOffsetMinutes(tz, date = new Date()) {
+  // Returns minutes east of UTC for this timezone at the given instant.
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+  const parts = fmt.formatToParts(date).reduce((o,p) => { o[p.type] = p.value; return o; }, {});
+  // Some timezones produce "24" for hour at midnight — normalize
+  if (parts.hour === '24') parts.hour = '00';
+  const asUTC = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+  return Math.round((asUTC - date.getTime()) / 60000);
+}
+
+function buildTzPicker() {
+  const sel = document.getElementById('world-tz-select');
+  const local = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  sel.innerHTML = TZ_OPTIONS
+    .filter(tz => !prefs.worldTzs.includes(tz))
+    .map(tz => {
+      const city = cityFromTz(tz);
+      const isLocal = tz === local ? ' (local)' : '';
+      return `<option value="${tz}">${city}${isLocal} — ${tz}</option>`;
+    }).join('');
+}
+
+function renderWorldList() {
+  const list = document.getElementById('world-list');
+  const local = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (!prefs.worldTzs.length) {
+    list.innerHTML = '<div class="alarm-empty">No cities yet</div>';
+    return;
+  }
+  list.innerHTML = prefs.worldTzs.map(tz => {
+    const isHome = tz === local;
+    return `
+      <div class="world-row" data-tz="${tz}" data-home="${isHome ? '1' : ''}">
+        <div class="world-info">
+          <div class="world-city">${cityFromTz(tz)}${isHome ? ' · home' : ''}</div>
+          <div class="world-meta">
+            <span class="world-delta" data-role="delta"></span>
+            <span data-role="meta"></span>
+          </div>
+        </div>
+        <div class="world-time" data-role="time">--:--</div>
+        <button class="world-remove" onclick="removeWorldTz('${tz}')" aria-label="Remove">×</button>
+      </div>`;
+  }).join('');
+  updateWorldList(new Date());
+}
+
+function updateWorldList(now) {
+  const rows = document.querySelectorAll('#world-list .world-row');
+  if (!rows.length) return;
+  const localOffset = -now.getTimezoneOffset(); // minutes east of UTC for local
+  const fmt24 = prefs.use24h;
+
+  rows.forEach(row => {
+    const tz = row.dataset.tz;
+    const isHome = row.dataset.home === '1';
+    const timeEl = row.querySelector('[data-role="time"]');
+    const metaEl = row.querySelector('[data-role="meta"]');
+    const deltaEl = row.querySelector('[data-role="delta"]');
+
+    let h, m, dayLabel, hour24;
+    try {
+      const f = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz, hour12: !fmt24,
+        hour: '2-digit', minute: '2-digit',
+        weekday: 'short'
+      });
+      const parts = f.formatToParts(now).reduce((o,p) => { o[p.type] = p.value; return o; }, {});
+      h = parts.hour;
+      if (h === '24') h = '00';
+      m = parts.minute;
+      dayLabel = parts.weekday;
+      hour24 = +new Intl.DateTimeFormat('en-US', {
+        timeZone: tz, hour12: false, hour: '2-digit'
+      }).format(now).replace('24', '0');
+    } catch (e) {
+      timeEl.textContent = '—';
+      return;
+    }
+    const ampm = fmt24 ? '' : (parts => {
+      // already included via hour12 — strip if present
+      return '';
+    })();
+    // When hour12 is true, Intl includes "AM"/"PM" via dayPeriod part.
+    let displayAmPm = '';
+    if (!fmt24) {
+      const fp = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz, hour12: true, hour: '2-digit', minute: '2-digit'
+      }).formatToParts(now);
+      const dp = fp.find(p => p.type === 'dayPeriod');
+      if (dp) displayAmPm = dp.value;
+    }
+    timeEl.innerHTML = `${h}:${m}${displayAmPm ? `<span class="ampm">${displayAmPm}</span>` : ''}`;
+
+    // offset vs local
+    const offsetMin = tzOffsetMinutes(tz, now) - localOffset;
+    let deltaStr = '';
+    if (offsetMin === 0) deltaStr = 'same time';
+    else {
+      const sign = offsetMin > 0 ? '+' : '−';
+      const abs = Math.abs(offsetMin);
+      const hh = Math.floor(abs/60);
+      const mm = abs % 60;
+      deltaStr = sign + hh + (mm ? ':' + pad(mm) : 'h');
+    }
+    deltaEl.textContent = deltaStr;
+    metaEl.textContent = ' · ' + dayLabel;
+
+    const isNight = hour24 < 6 || hour24 >= 20;
+    row.classList.toggle('night', isNight);
+    row.classList.toggle('day', !isNight);
+    row.classList.toggle('home', isHome);
+  });
+}
+
+function showWorldPicker() {
+  buildTzPicker();
+  document.getElementById('world-picker').classList.remove('hidden');
+  document.getElementById('world-add-btn').classList.add('hidden');
+}
+function hideWorldPicker() {
+  document.getElementById('world-picker').classList.add('hidden');
+  document.getElementById('world-add-btn').classList.remove('hidden');
+}
+function addWorldTz() {
+  const sel = document.getElementById('world-tz-select');
+  const tz = sel.value;
+  if (!tz || prefs.worldTzs.includes(tz)) { hideWorldPicker(); return; }
+  prefs.worldTzs.push(tz);
+  savePrefs();
+  renderWorldList();
+  hideWorldPicker();
+  toast(cityFromTz(tz) + ' added');
+}
+function removeWorldTz(tz) {
+  prefs.worldTzs = prefs.worldTzs.filter(x => x !== tz);
+  savePrefs();
+  renderWorldList();
+}
+
+document.getElementById('world-add-btn').addEventListener('click', showWorldPicker);
+
+// Ensure home TZ is always first if present
+(function ensureHomeFirst() {
+  const local = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (!prefs.worldTzs.includes(local)) prefs.worldTzs.unshift(local);
+  else {
+    prefs.worldTzs = [local, ...prefs.worldTzs.filter(x => x !== local)];
+  }
+  savePrefs();
+})();
+
+renderWorldList();
+
+// ─────────────────────────────────────────────────────
+//  ALARMS
+// ─────────────────────────────────────────────────────
+let alarmRinging = null; // currently ringing alarm id
+let alarmRingTimer = null;
+
+function alarmNextFireTime(timeStr, from = new Date()) {
+  // timeStr "HH:MM", fire at next occurrence from `from`
+  const [h, m] = timeStr.split(':').map(Number);
+  const t = new Date(from);
+  t.setHours(h, m, 0, 0);
+  if (t <= from) t.setDate(t.getDate() + 1);
+  return t;
+}
+
+function renderAlarms() {
+  const list = document.getElementById('alarm-list');
+  const empty = document.getElementById('alarm-empty');
+  if (!prefs.alarms.length) {
+    list.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  const now = new Date();
+  // sort: enabled first (by next fire time), then disabled
+  const sorted = [...prefs.alarms].sort((a, b) => {
+    if (a.enabled !== b.enabled) return b.enabled - a.enabled;
+    return a.time.localeCompare(b.time);
+  });
+  list.innerHTML = sorted.map(a => {
+    const fire = alarmNextFireTime(a.time, now);
+    const rel = fmtDuration(fire - now);
+    return `
+      <div class="alarm-row ${a.enabled ? '' : 'off'}" data-id="${a.id}">
+        <div class="alarm-info">
+          <div class="alarm-time">${displayAlarmTime(a.time)}</div>
+          <div class="alarm-label">${a.label ? escapeHTML(a.label) : '—'}</div>
+          ${a.enabled ? `<div class="alarm-countdown">in ${rel}</div>` : ''}
+        </div>
+        <div class="alarm-controls">
+          <button class="toggle ${a.enabled ? 'on' : ''}" onclick="toggleAlarm('${a.id}')" aria-label="Toggle"></button>
+          <button class="alarm-delete" onclick="deleteAlarm('${a.id}')" aria-label="Delete">×</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function displayAlarmTime(hhmm) {
+  if (prefs.use24h) return hhmm;
+  const [h, m] = hhmm.split(':').map(Number);
+  const ap = h >= 12 ? 'PM' : 'AM';
+  let h12 = h % 12;
+  if (h12 === 0) h12 = 12;
+  return pad(h12) + ':' + pad(m) + ' ' + ap;
+}
+
+function escapeHTML(s) {
+  return s.replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+function showAlarmForm() {
+  document.getElementById('alarms-list-wrap').classList.add('hidden');
+  document.getElementById('alarm-add-form').classList.remove('hidden');
+  // default to 5 minutes from now, rounded to 5
+  const now = new Date();
+  now.setMinutes(now.getMinutes() + 5 - (now.getMinutes() % 5));
+  document.getElementById('alarm-time-input').value = pad(now.getHours()) + ':' + pad(now.getMinutes());
+  document.getElementById('alarm-label-input').value = '';
+}
+
+function cancelAlarmForm() {
+  document.getElementById('alarms-list-wrap').classList.remove('hidden');
+  document.getElementById('alarm-add-form').classList.add('hidden');
+}
+
+function saveAlarm() {
+  const time = document.getElementById('alarm-time-input').value;
+  const label = document.getElementById('alarm-label-input').value.trim();
+  if (!time) { toast('Pick a time'); return; }
+  const id = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+  prefs.alarms.push({ id, time, label, enabled: true });
+  savePrefs();
+  renderAlarms();
+  cancelAlarmForm();
+  toast('Alarm set for ' + displayAlarmTime(time));
+  // opportunistically request notification permission
+  maybeRequestNotif();
+}
+
+function toggleAlarm(id) {
+  const a = prefs.alarms.find(x => x.id === id);
+  if (!a) return;
+  a.enabled = !a.enabled;
+  savePrefs();
+  renderAlarms();
+}
+
+function deleteAlarm(id) {
+  prefs.alarms = prefs.alarms.filter(a => a.id !== id);
+  savePrefs();
+  renderAlarms();
+}
+
+document.getElementById('alarm-add-btn').addEventListener('click', showAlarmForm);
+
+// check alarms every tick
+let alarmLastMinute = -1;
+function checkAlarms(now) {
+  const curMinute = now.getHours() * 60 + now.getMinutes();
+  if (curMinute === alarmLastMinute) return;
+  // only update cards every minute to show countdown
+  if (document.getElementById('panel-alarms').classList.contains('active')) {
+    renderAlarms();
+  }
+  // check for fires: only at exact minute match and on seconds 0..2
+  if (now.getSeconds() > 2) { alarmLastMinute = curMinute; return; }
+  const hhmm = pad(now.getHours()) + ':' + pad(now.getMinutes());
+  for (const a of prefs.alarms) {
+    if (!a.enabled) continue;
+    if (a.time === hhmm && a.lastFiredMinute !== curMinute) {
+      a.lastFiredMinute = curMinute;
+      fireAlarm(a);
+    }
+  }
+  alarmLastMinute = curMinute;
+}
+
+function fireAlarm(a) {
+  alarmRinging = a.id;
+  const modal = document.getElementById('alarm-modal');
+  document.getElementById('alarm-modal-time').textContent = displayAlarmTime(a.time);
+  document.getElementById('alarm-modal-label').textContent = a.label || 'alarm';
+  modal.classList.add('show');
+  doneSound(); // initial
+  // loop sound + vibration every 2s for up to 60s
+  let elapsed = 0;
+  clearInterval(alarmRingTimer);
+  alarmRingTimer = setInterval(() => {
+    elapsed += 2;
+    doneSound();
+    if (prefs.vibrate && navigator.vibrate) navigator.vibrate([400, 200, 400]);
+    if (elapsed >= 60) stopAlarm();
+  }, 2000);
+  if (prefs.vibrate && navigator.vibrate) navigator.vibrate([400, 200, 400]);
+  if (Notification.permission === 'granted') {
+    new Notification('⏰ Alarm', { body: a.label || a.time, tag: 'clock-alarm-' + a.id });
+  }
+}
+
+function stopAlarm() {
+  clearInterval(alarmRingTimer);
+  alarmRingTimer = null;
+  document.getElementById('alarm-modal').classList.remove('show');
+  alarmRinging = null;
+}
+function snoozeAlarm() {
+  const id = alarmRinging;
+  stopAlarm();
+  if (!id) return;
+  // fire again in 9 minutes
+  setTimeout(() => {
+    const a = prefs.alarms.find(x => x.id === id);
+    if (a && a.enabled) fireAlarm(a);
+  }, 9 * 60 * 1000);
+  toast('Snoozed 9 minutes');
+}
+document.getElementById('alarm-stop-btn').addEventListener('click', stopAlarm);
+document.getElementById('alarm-snooze-btn').addEventListener('click', snoozeAlarm);
+
+renderAlarms();
+
+// ─────────────────────────────────────────────────────
+//  COUNTDOWN MODE
+// ─────────────────────────────────────────────────────
+let cdMode = 'duration';
+
+function setCdMode(mode) {
+  cdMode = mode;
+  document.getElementById('cd-mode-duration').classList.toggle('active', mode === 'duration');
+  document.getElementById('cd-mode-target').classList.toggle('active', mode === 'target');
+  document.getElementById('cd-duration-inputs').classList.toggle('hidden', mode !== 'duration');
+  document.getElementById('cd-target-inputs').classList.toggle('hidden', mode !== 'target');
+  if (mode === 'target') updateTargetBadge();
+}
+
+function updateTargetBadge() {
+  const val = document.getElementById('cd-target-time').value;
+  if (!val) { document.getElementById('cd-target-badge').textContent = ''; return; }
+  const ms = getTargetMs(val);
+  document.getElementById('cd-target-badge').textContent = (ms > 86400000 - 1000) ? 'tomorrow' : '';
+}
+
+document.getElementById('cd-target-time').addEventListener('change', updateTargetBadge);
+document.getElementById('cd-target-time').addEventListener('input', updateTargetBadge);
+
+function getTargetMs(val) {
+  if (!val) return null;
+  const [th, tm] = val.split(':').map(Number);
+  const now = new Date();
+  const target = new Date(now);
+  target.setHours(th, tm, 0, 0);
+  let diff = target - now;
+  if (diff <= 0) diff += 86400000;
+  return diff;
+}
+
+// ─────────────────────────────────────────────────────
+//  COUNTDOWN
+// ─────────────────────────────────────────────────────
+const CD_C = circumference(92);
+document.getElementById('cd-ring').setAttribute('stroke-dasharray', CD_C);
+
+let cdTotal = 0, cdRemaining = 0, cdRunning = false, cdInterval = null;
+let cdStartTime = null, cdPausedAt = 0, cdIsTarget = false, cdTargetLabel = '';
+let cdUserLabel = '';
+let cdOrigTotal = 0; // before +1m additions
+
+// restore last used values
+document.getElementById('cd-h').value = prefs.cdLast.h ?? 0;
+document.getElementById('cd-m').value = prefs.cdLast.m ?? 5;
+document.getElementById('cd-s').value = prefs.cdLast.s ?? 0;
+document.getElementById('cd-label-input').value = prefs.cdLast.label || '';
+renderCdHistory();
+
+function setPreset(h, m, s) {
+  document.getElementById('cd-h').value = h;
+  document.getElementById('cd-m').value = m;
+  document.getElementById('cd-s').value = s;
+}
+
+function cdGetMs() {
+  const h = parseInt(document.getElementById('cd-h').value) || 0;
+  const m = parseInt(document.getElementById('cd-m').value) || 0;
+  const s = parseInt(document.getElementById('cd-s').value) || 0;
+  return (h * 3600 + m * 60 + s) * 1000;
+}
+
+function cdStart() {
+  let total;
+  cdIsTarget = cdMode === 'target';
+  cdUserLabel = document.getElementById('cd-label-input').value.trim();
+  if (cdIsTarget) {
+    const val = document.getElementById('cd-target-time').value;
+    total = getTargetMs(val);
+    if (!total || total <= 0) { toast('Pick a future time'); return; }
+    cdTargetLabel = 'until ' + val;
+  } else {
+    total = cdGetMs();
+    if (total <= 0) { toast('Set a time first'); return; }
+    cdTargetLabel = cdUserLabel || 'remaining';
+    // persist last-used duration
+    prefs.cdLast = {
+      h: parseInt(document.getElementById('cd-h').value) || 0,
+      m: parseInt(document.getElementById('cd-m').value) || 0,
+      s: parseInt(document.getElementById('cd-s').value) || 0,
+      label: cdUserLabel
+    };
+    savePrefs();
+  }
+  cdTotal = total; cdOrigTotal = total; cdRemaining = total; cdPausedAt = 0;
+  cdStartTime = Date.now(); cdRunning = true;
+  document.getElementById('cd-running-label').textContent = cdTargetLabel;
+  document.getElementById('cd-setup').classList.add('hidden');
+  document.getElementById('cd-running').classList.remove('hidden');
+  document.getElementById('cd-running').style.display = 'flex';
+  cdInterval = setInterval(cdTick, 50);
+  cdTick();
+  cdSetPlayIcon(true);
+  maybeRequestNotif();
+}
+
+function cdTick() {
+  const elapsed = Date.now() - cdStartTime + cdPausedAt;
+  cdRemaining = Math.max(0, cdTotal - elapsed);
+  const { main, ms } = fmt(cdRemaining);
+  document.getElementById('cd-display').textContent = main;
+  document.getElementById('cd-ms').textContent = ms;
+  const pct = cdRemaining / cdTotal;
+  document.getElementById('cd-ring').style.strokeDashoffset = CD_C * (1 - pct);
+
+  if (cdIsTarget) {
+    const eta = new Date(Date.now() + cdRemaining);
+    document.getElementById('cd-pct').textContent = pad(eta.getHours()) + ':' + pad(eta.getMinutes());
+    document.getElementById('cd-eta').textContent = '';
+  } else {
+    document.getElementById('cd-pct').textContent = Math.ceil(pct * 100) + '%';
+    const eta = new Date(Date.now() + cdRemaining);
+    document.getElementById('cd-eta').textContent =
+      'ends ' + pad(eta.getHours()) + ':' + pad(eta.getMinutes());
+  }
+
+  const isUrgent = pct < 0.1;
+  document.getElementById('cd-display').classList.toggle('urgent', isUrgent);
+  document.getElementById('cd-ring').classList.toggle('urgent', isUrgent);
+  // final 3s warning beeps
+  if (cdRemaining > 0 && cdRemaining <= 3000 && cdRemaining % 1000 < 60) {
+    beep(1200, 0.06, 0.12);
+  }
+  if (cdRemaining <= 0) cdDone();
+}
+
+function cdToggle() {
+  if (cdRemaining <= 0) return;
+  cdRunning = !cdRunning;
+  if (cdRunning) {
+    cdStartTime = Date.now();
+    cdInterval = setInterval(cdTick, 50);
+  } else {
+    cdPausedAt += Date.now() - cdStartTime;
+    clearInterval(cdInterval);
+  }
+  cdSetPlayIcon(cdRunning);
+}
+
+function cdSetPlayIcon(playing) {
+  document.getElementById('cd-play-btn').classList.toggle('running', playing);
+  document.getElementById('cd-play-icon').innerHTML = playing
+    ? '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>'
+    : '<polygon points="5 3 19 12 5 21 5 3"/>';
+}
+
+function cdAddMin() {
+  cdTotal += 60000;
+  toast('+1 min');
+}
+
+function cdReset() {
+  clearInterval(cdInterval);
+  cdRunning = false; cdPausedAt = 0; cdRemaining = 0;
+  document.getElementById('cd-setup').classList.remove('hidden');
+  document.getElementById('cd-running').classList.add('hidden');
+  document.getElementById('cd-ring').style.strokeDashoffset = 0;
+  document.getElementById('cd-display').classList.remove('urgent');
+  document.getElementById('cd-ring').classList.remove('urgent');
+  cancelSwTimer();
+}
+
+function cdDone() {
+  clearInterval(cdInterval); cdRunning = false;
+  document.getElementById('cd-display').textContent = '00:00';
+  document.getElementById('cd-ms').textContent = '.000';
+  document.getElementById('cd-pct').textContent = 'done';
+  document.getElementById('cd-ring').style.strokeDashoffset = CD_C;
+  document.getElementById('cd-display').classList.add('done-flash');
+  setTimeout(() => document.getElementById('cd-display').classList.remove('done-flash'), 700);
+  cdSetPlayIcon(false);
+  fireDoneOverlay();
+  doneRingFill('cd-ring', CD_C);
+  doneSound();
+  if (prefs.vibrate && navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+  if (Notification.permission === 'granted') {
+    new Notification('Timer done ✓', {
+      body: cdIsTarget
+        ? ('Reached ' + cdTargetLabel.replace('until ', ''))
+        : (cdUserLabel || 'Your countdown ended.'),
+      tag: 'clock-timer'
+    });
+  }
+  toast("Time's up!");
+
+  // log to history (last 6)
+  if (!cdIsTarget) {
+    prefs.cdHistory.unshift({
+      label: cdUserLabel || '',
+      ms: cdOrigTotal,
+      when: Date.now()
+    });
+    prefs.cdHistory = prefs.cdHistory.slice(0, 6);
+    savePrefs();
+    renderCdHistory();
+  }
+}
+
+function renderCdHistory() {
+  const list = document.getElementById('cd-history');
+  const wrap = document.getElementById('cd-history-wrap');
+  if (!prefs.cdHistory.length) { wrap.classList.add('hidden'); return; }
+  wrap.classList.remove('hidden');
+  list.innerHTML = prefs.cdHistory.map((h, i) => {
+    const dur = fmtDuration(h.ms);
+    return `
+      <div class="history-row" onclick="reuseHistory(${i})">
+        <span class="history-label">${h.label ? escapeHTML(h.label) : '—'}</span>
+        <span class="history-dur">${dur}</span>
+        <span class="history-when">${relWhen(h.when)}</span>
+      </div>`;
+  }).join('');
+}
+
+function reuseHistory(i) {
+  const h = prefs.cdHistory[i];
+  if (!h) return;
+  const totalSec = Math.round(h.ms / 1000);
+  const hh = Math.floor(totalSec / 3600);
+  const mm = Math.floor((totalSec % 3600) / 60);
+  const ss = totalSec % 60;
+  setCdMode('duration');
+  document.getElementById('cd-h').value = hh;
+  document.getElementById('cd-m').value = mm;
+  document.getElementById('cd-s').value = ss;
+  document.getElementById('cd-label-input').value = h.label || '';
+  toast('Loaded');
+}
+
+// ─────────────────────────────────────────────────────
+//  INTERVAL TIMER
+// ─────────────────────────────────────────────────────
+let ivRounds = prefs.ivLast.rounds;
+let ivWorkMs = prefs.ivLast.work * 60000;
+let ivRestMs = prefs.ivLast.rest * 60000;
+let ivCurrentRound = 1, ivPhase = 'work', ivRunning = false;
+let ivInterval = null, ivStartTime = null, ivElapsedInPhase = 0;
+let ivPhaseTotal = 0, ivTotalElapsed = 0, ivTotalMs = 0;
+let ivUseSeconds = false; // Tabata mode flips to seconds
+
+const IV_PHASE_C = circumference(78);
+const IV_TOTAL_C = circumference(92);
+document.getElementById('iv-phase-ring').setAttribute('stroke-dasharray', IV_PHASE_C);
+document.getElementById('iv-total-ring').setAttribute('stroke-dasharray', IV_TOTAL_C);
+
+// Restore last
+document.getElementById('iv-work').value = prefs.ivLast.work;
+document.getElementById('iv-rest').value = prefs.ivLast.rest;
+document.getElementById('iv-rounds-display').textContent = ivRounds;
+
+function ivChangeRounds(d) {
+  ivRounds = Math.max(1, Math.min(30, ivRounds + d));
+  document.getElementById('iv-rounds-display').textContent = ivRounds;
+}
+
+function ivPreset(work, rest, rounds) {
+  ivUseSeconds = false;
+  document.getElementById('iv-work').value = work;
+  document.getElementById('iv-rest').value = rest;
+  ivRounds = rounds;
+  document.getElementById('iv-rounds-display').textContent = rounds;
+}
+
+function ivPresetTabata() {
+  // 20s / 10s x 8 — input still stored in minutes (fractional)
+  ivUseSeconds = true;
+  document.getElementById('iv-work').value = (20/60).toFixed(2);
+  document.getElementById('iv-rest').value = (10/60).toFixed(2);
+  ivRounds = 8;
+  document.getElementById('iv-rounds-display').textContent = ivRounds;
+  toast('Tabata: 20s/10s × 8');
+}
+
+function renderRoundDots() {
+  const host = document.getElementById('iv-round-dots');
+  host.innerHTML = '';
+  for (let i = 0; i < ivRounds; i++) {
+    const d = document.createElement('div');
+    d.className = 'round-dot';
+    if (i + 1 < ivCurrentRound) d.classList.add('done');
+    else if (i + 1 === ivCurrentRound) d.classList.add('current');
+    host.appendChild(d);
+  }
+}
+
+function ivStart() {
+  const w = parseFloat(document.getElementById('iv-work').value) || 25;
+  const r = parseFloat(document.getElementById('iv-rest').value) || 5;
+  ivWorkMs = Math.round(w * 60000);
+  ivRestMs = Math.round(r * 60000);
+  ivTotalMs = (ivWorkMs + ivRestMs) * ivRounds - ivRestMs;
+  ivCurrentRound = 1; ivPhase = 'work'; ivPhaseTotal = ivWorkMs;
+  ivElapsedInPhase = 0; ivTotalElapsed = 0; ivRunning = true; ivStartTime = Date.now();
+  document.getElementById('iv-setup').classList.add('hidden');
+  document.getElementById('iv-running').classList.remove('hidden');
+  document.getElementById('iv-running').style.display = 'flex';
+  ivInterval = setInterval(ivTick, 50);
+  ivUpdateDisplay();
+  ivSetPlayIcon(true);
+  renderRoundDots();
+  maybeRequestNotif();
+  // save prefs
+  prefs.ivLast = { work: w, rest: r, rounds: ivRounds };
+  savePrefs();
+}
+
+function ivTick() {
+  const elapsed = Date.now() - ivStartTime + ivElapsedInPhase;
+  const remaining = Math.max(0, ivPhaseTotal - elapsed);
+  document.getElementById('iv-display').textContent = fmt(remaining).main;
+  const phasePct = remaining / ivPhaseTotal;
+  document.getElementById('iv-phase-ring').style.strokeDashoffset = IV_PHASE_C * (1 - phasePct);
+  const totalUsed = ivTotalElapsed + (Date.now() - ivStartTime);
+  document.getElementById('iv-total-ring').style.strokeDashoffset = IV_TOTAL_C * (1 - Math.min(1, totalUsed / ivTotalMs));
+  // countdown beeps at 3,2,1
+  if (remaining > 0 && remaining <= 3000 && remaining % 1000 < 60) {
+    beep(1200, 0.05, 0.1);
+  }
+  if (remaining <= 0) ivNextPhase();
+}
+
+function ivNextPhase() {
+  ivTotalElapsed += Date.now() - ivStartTime; ivElapsedInPhase = 0;
+  if (ivPhase === 'work') {
+    if (ivCurrentRound >= ivRounds) { ivDone(); return; }
+    ivPhase = 'rest'; ivPhaseTotal = ivRestMs;
+  } else {
+    ivPhase = 'work'; ivPhaseTotal = ivWorkMs; ivCurrentRound++;
+  }
+  ivStartTime = Date.now();
+  ivUpdateDisplay();
+  renderRoundDots();
+  if (prefs.vibrate && navigator.vibrate) navigator.vibrate(ivPhase === 'work' ? [150, 80, 150] : [100]);
+  phaseSound(ivPhase === 'work');
+  if (Notification.permission === 'granted') {
+    new Notification(ivPhase === 'work' ? '💪 Work!' : '😌 Rest', { body: 'Round ' + ivCurrentRound + ' of ' + ivRounds, tag: 'clock-interval' });
+  }
+}
+
+function ivUpdateDisplay() {
+  const el = document.getElementById('iv-phase-label');
+  el.textContent = ivPhase;
+  el.className = 'interval-phase-label ' + ivPhase;
+  document.getElementById('iv-rounds-info').textContent = 'round ' + ivCurrentRound + ' of ' + ivRounds;
+  const phaseRing = document.getElementById('iv-phase-ring');
+  phaseRing.style.stroke = ivPhase === 'work' ? 'var(--accent)' : 'var(--green)';
+  phaseRing.classList.toggle('rest-phase', ivPhase === 'rest');
+}
+
+function ivToggle() {
+  ivRunning = !ivRunning;
+  if (ivRunning) { ivStartTime = Date.now(); ivInterval = setInterval(ivTick, 50); }
+  else { ivElapsedInPhase += Date.now() - ivStartTime; clearInterval(ivInterval); }
+  ivSetPlayIcon(ivRunning);
+}
+
+function ivSkip() {
+  clearInterval(ivInterval);
+  ivNextPhase();
+  if (ivRunning) ivInterval = setInterval(ivTick, 50);
+}
+
+function ivReset() {
+  clearInterval(ivInterval); ivRunning = false;
+  document.getElementById('iv-setup').classList.remove('hidden');
+  document.getElementById('iv-running').classList.add('hidden');
+  cancelSwTimer();
+}
+
+function ivSetPlayIcon(playing) {
+  document.getElementById('iv-play-btn').classList.toggle('running', playing);
+  document.getElementById('iv-play-icon').innerHTML = playing
+    ? '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>'
+    : '<polygon points="5 3 19 12 5 21 5 3"/>';
+}
+
+function ivDone() {
+  clearInterval(ivInterval); ivRunning = false;
+  document.getElementById('iv-display').textContent = '00:00';
+  document.getElementById('iv-phase-label').textContent = 'done';
+  document.getElementById('iv-phase-label').className = 'interval-phase-label';
+  document.getElementById('iv-total-ring').style.strokeDashoffset = 0;
+  fireDoneOverlay();
+  doneSound();
+  if (prefs.vibrate && navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+  if (Notification.permission === 'granted') {
+    new Notification('Interval done 🎉', { body: ivRounds + ' rounds complete!', tag: 'clock-interval' });
+  }
+  toast('All rounds done!');
+  ivSetPlayIcon(false);
+  // auto-reset all dots done
+  for (let i = 0; i < ivRounds; i++) { /* round dots now show all done */ }
+  const host = document.getElementById('iv-round-dots');
+  Array.from(host.children).forEach(d => { d.classList.remove('current'); d.classList.add('done'); });
+}
+
+// ─────────────────────────────────────────────────────
+//  CHRONOMETER
+// ─────────────────────────────────────────────────────
+const CHR_C = circumference(92);
+document.getElementById('chrono-ring').setAttribute('stroke-dasharray', CHR_C);
+document.getElementById('chrono-ring').setAttribute('stroke-dashoffset', CHR_C);
+
+let chrRunning = false, chrStartTime = null, chrElapsed = 0;
+let chrInterval = null, chrLaps = [], chrLastLap = 0;
+
+function chronoToggle() {
+  chrRunning = !chrRunning;
+  if (chrRunning) {
+    chrStartTime = Date.now();
+    document.getElementById('chrono-label').textContent = 'running';
+    document.getElementById('chrono-lap-btn').disabled = false;
+    document.getElementById('chrono-reset-btn').disabled = false;
+    chronoRaf();
+  } else {
+    chrElapsed += Date.now() - chrStartTime;
+    if (chrInterval) { cancelAnimationFrame(chrInterval); chrInterval = null; }
+    document.getElementById('chrono-label').textContent = 'paused';
+  }
+  chronoSetIcon(chrRunning);
+}
+
+function chronoRaf() {
+  if (!chrRunning) return;
+  chronoTick();
+  chrInterval = requestAnimationFrame(chronoRaf);
+}
+
+function chronoTick() {
+  const total = chrElapsed + (Date.now() - chrStartTime);
+  const { main, ms } = fmt(total);
+  document.getElementById('chrono-display').textContent = main;
+  document.getElementById('chrono-ms').textContent = ms;
+  document.getElementById('chrono-ring').style.strokeDashoffset = CHR_C * (1 - (total % 60000) / 60000);
+}
+
+function chronoLap() {
+  if (!chrRunning) return;
+  lapSound();
+  const total = chrElapsed + (Date.now() - chrStartTime);
+  const split = total - chrLastLap; chrLastLap = total;
+  chrLaps.unshift({ n: chrLaps.length + 1, split, total });
+  if (chrLaps.length > 1) {
+    const splits = chrLaps.map(l => l.split);
+    const best = Math.min(...splits), worst = Math.max(...splits);
+    chrLaps.forEach(l => { l.best = l.split === best; l.worst = l.split === worst; });
+  }
+  document.getElementById('chrono-lap-label').textContent = 'lap ' + chrLaps[0].n;
+  renderLaps();
+}
+
+function renderLaps() {
+  document.getElementById('laps-list').innerHTML = chrLaps.map(l =>
+    '<div class="lap' + (l.best && chrLaps.length > 1 ? ' best' : '') + (l.worst && chrLaps.length > 1 ? ' worst' : '') + '">' +
+    '<span class="lap-num"><span class="lap-marker"></span>Lap ' + l.n + '</span>' +
+    '<span class="lap-split">' + fmt(l.split).main + fmt(l.split).ms + '</span>' +
+    '<span class="lap-total">' + fmt(l.total).main + '</span></div>'
+  ).join('');
+}
+
+function chronoReset() {
+  if (chrInterval) { cancelAnimationFrame(chrInterval); chrInterval = null; }
+  chrRunning = false; chrElapsed = 0; chrStartTime = null; chrLaps = []; chrLastLap = 0;
+  document.getElementById('chrono-display').textContent = '00:00';
+  document.getElementById('chrono-ms').textContent = '.000';
+  document.getElementById('chrono-label').textContent = 'ready';
+  document.getElementById('chrono-lap-label').textContent = '';
+  document.getElementById('chrono-ring').style.strokeDashoffset = CHR_C;
+  document.getElementById('laps-list').innerHTML = '';
+  document.getElementById('chrono-lap-btn').disabled = true;
+  document.getElementById('chrono-reset-btn').disabled = true;
+  chronoSetIcon(false);
+}
+
+function chronoSetIcon(playing) {
+  document.getElementById('chrono-play-btn').classList.toggle('running', playing);
+  document.getElementById('chrono-play-icon').innerHTML = playing
+    ? '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>'
+    : '<polygon points="5 3 19 12 5 21 5 3"/>';
+}
+
+// ─────────────────────────────────────────────────────
+//  NOTIFICATIONS
+// ─────────────────────────────────────────────────────
+let notifRequested = false;
+function maybeRequestNotif() {
+  if (notifRequested) return;
+  notifRequested = true;
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+document.addEventListener('pointerdown', maybeRequestNotif, { once: true });
+
+// ─────────────────────────────────────────────────────
+//  AUDIO
+// ─────────────────────────────────────────────────────
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch {}
+  }
+  return audioCtx;
+}
+
+function beep(freq = 880, dur = 0.06, vol = 0.18, type = 'sine') {
+  if (!prefs.sound) return;
+  try {
+    const ctx = getAudio();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    osc.start(); osc.stop(ctx.currentTime + dur);
+  } catch {}
+}
+
+function lapSound()   { beep(880, 0.07, 0.15); }
+function doneSound()  {
+  beep(660, 0.12, 0.22);
+  setTimeout(() => beep(880, 0.12, 0.22), 130);
+  setTimeout(() => beep(1100, 0.2, 0.22), 260);
+}
+function phaseSound(isWork) {
+  if (isWork) { beep(880, 0.08, 0.18); setTimeout(() => beep(1100, 0.12, 0.2), 90); }
+  else        { beep(660, 0.1, 0.18); setTimeout(() => beep(550, 0.14, 0.18), 110); }
+}
+
+// ─────────────────────────────────────────────────────
+//  KEYBOARD SHORTCUTS
+// ─────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  const active = document.querySelector('.tab.active')?.dataset.panel;
+  switch (e.code) {
+    case 'Space':
+      e.preventDefault();
+      if (active === 'countdown')      cdToggle();
+      else if (active === 'chrono')    chronoToggle();
+      else if (active === 'interval')  ivToggle();
+      break;
+    case 'KeyL':
+      if (active === 'chrono') chronoLap();
+      break;
+    case 'KeyR':
+      if (active === 'countdown')      cdReset();
+      else if (active === 'chrono')    chronoReset();
+      else if (active === 'interval')  ivReset();
+      break;
+    case 'KeyS': e.preventDefault(); openSheet(); break;
+    case 'Escape': closeSheet(); if (alarmRinging) stopAlarm(); break;
+    case 'Digit1': switchTab('time'); break;
+    case 'Digit2': switchTab('world'); break;
+    case 'Digit3': switchTab('alarms'); break;
+    case 'Digit4': switchTab('countdown'); break;
+    case 'Digit5': switchTab('interval'); break;
+    case 'Digit6': switchTab('chrono'); break;
+  }
+});
+
+// ─────────────────────────────────────────────────────
+//  SETTINGS SHEET
+// ─────────────────────────────────────────────────────
+function openSheet() {
+  document.getElementById('sheet').classList.add('show');
+  document.getElementById('sheet-backdrop').classList.add('show');
+}
+function closeSheet() {
+  document.getElementById('sheet').classList.remove('show');
+  document.getElementById('sheet-backdrop').classList.remove('show');
+}
+document.getElementById('settings-btn').addEventListener('click', openSheet);
+document.getElementById('sheet-backdrop').addEventListener('click', closeSheet);
+
+// Theme swatches
+document.querySelectorAll('.swatch').forEach(sw => {
+  sw.addEventListener('click', () => applyTheme(sw.dataset.theme));
+});
+
+// Toggles
+function bindToggle(id, key, onChange) {
+  const el = document.getElementById(id);
+  function render() { el.classList.toggle('on', !!prefs[key]); }
+  el.addEventListener('click', () => {
+    prefs[key] = !prefs[key];
+    savePrefs();
+    render();
+    onChange?.();
+  });
+  render();
+}
+bindToggle('toggle-sound',    'sound');
+bindToggle('toggle-vibrate',  'vibrate');
+bindToggle('toggle-progress', 'showProgress', () => {
+  document.getElementById('progress-widget').classList.toggle('hidden', !prefs.showProgress);
+});
+bindToggle('toggle-24h',      'use24h', () => { tickTOD(); renderAlarms(); });
+bindToggle('toggle-seconds',  'showSeconds', () => {
+  document.getElementById('flip-group-sec').classList.toggle('hidden', !prefs.showSeconds);
+  document.getElementById('flip-sep-sec').classList.toggle('hidden', !prefs.showSeconds);
+});
+
+// apply persisted settings on boot
+applyTheme(prefs.theme);
+document.getElementById('progress-widget').classList.toggle('hidden', !prefs.showProgress);
+document.getElementById('flip-group-sec').classList.toggle('hidden', !prefs.showSeconds);
+document.getElementById('flip-sep-sec').classList.toggle('hidden', !prefs.showSeconds);
+setClockMode(prefs.clockMode);
+
+// kick initial clock render
+tickTOD();
+
+// ─────────────────────────────────────────────────────
+//  PWA: DEEP LINK + SW REGISTRATION
+// ─────────────────────────────────────────────────────
+(function() {
+  const params = new URLSearchParams(location.search);
+  const tab = params.get('tab');
+  if (tab && document.getElementById('panel-' + tab)) {
+    switchTab(tab);
+  } else if (prefs.lastTab && prefs.lastTab !== 'time' && document.getElementById('panel-' + prefs.lastTab)) {
+    switchTab(prefs.lastTab);
+  }
+})();
+
+let swRegistration = null;
+let scheduledTimerId = null;
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js')
+    .then(reg => {
+      swRegistration = reg;
+      if (reg.waiting) showUpdateBanner();
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        newWorker?.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateBanner();
+          }
+        });
+      });
+      setInterval(() => reg.update(), 60_000);
+    })
+    .catch(() => {});
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => location.reload());
+
+  navigator.serviceWorker.addEventListener('message', event => {
+    if (event.data?.type === 'TIMER_SCHEDULED') {
+      scheduledTimerId = event.data.id;
+    }
+  });
+}
+
+function showUpdateBanner() {
+  const banner = document.getElementById('update-banner');
+  banner.classList.add('show');
+  banner.addEventListener('click', () => {
+    if (swRegistration?.waiting) {
+      swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+    }
+  });
+}
+
+// Install prompt
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  setTimeout(() => document.getElementById('install-prompt').classList.add('show'), 3000);
+});
+document.getElementById('install-btn').addEventListener('click', async () => {
+  if (!deferredInstallPrompt) return;
+  document.getElementById('install-prompt').classList.remove('show');
+  deferredInstallPrompt.prompt();
+  const { outcome } = await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  if (outcome === 'accepted') toast('Installed ✓');
+});
+document.getElementById('install-dismiss').addEventListener('click', () => {
+  document.getElementById('install-prompt').classList.remove('show');
+  deferredInstallPrompt = null;
+});
+window.addEventListener('appinstalled', () => {
+  document.getElementById('install-prompt').classList.remove('show');
+  deferredInstallPrompt = null;
+});
+
+// Background timers via SW
+function scheduleSwTimer(label, delayMs, title) {
+  cancelSwTimer();
+  if (!navigator.serviceWorker?.controller) return;
+  navigator.serviceWorker.controller.postMessage({
+    type: 'SCHEDULE_TIMER', label, delayMs,
+    title: title || 'Timer done ✓',
+    tag: 'clock-bg'
+  });
+}
+function cancelSwTimer() {
+  if (scheduledTimerId == null) return;
+  if (!navigator.serviceWorker?.controller) return;
+  navigator.serviceWorker.controller.postMessage({
+    type: 'CANCEL_TIMER', id: scheduledTimerId
+  });
+  scheduledTimerId = null;
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    if (cdRunning && cdRemaining > 0) {
+      scheduleSwTimer(cdUserLabel || (cdIsTarget ? cdTargetLabel : 'Countdown ended'), cdRemaining, 'Timer done ✓');
+    }
+    else if (ivRunning) {
+      const remaining = ivTotalMs - ivTotalElapsed - (Date.now() - ivStartTime);
+      scheduleSwTimer('Interval timer done', remaining, 'Interval done 🎉');
+    }
+  } else {
+    cancelSwTimer();
+    if (wakeLockEnabled) {
+      navigator.wakeLock?.request('screen').then(l => { wakeLock = l; }).catch(() => {});
+    }
+  }
+});
+
+// on boot, greet
+(function boot() {
+  const hour = new Date().getHours();
+  let greeting = 'Welcome back';
+  if (hour < 5)       greeting = 'Late night';
+  else if (hour < 12) greeting = 'Good morning';
+  else if (hour < 18) greeting = 'Good afternoon';
+  else                greeting = 'Good evening';
+  // skip greeting toast on first-ever visit to keep UI clean — only show on return
+  if (localStorage.getItem(STORE_KEY)) {
+    setTimeout(() => toast(greeting), 400);
+  }
+})();
+</script>
+</body>
+</html>
