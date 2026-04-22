@@ -1922,7 +1922,7 @@ let swRegistration = null;
 let scheduledTimerId = null;
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js')
+  navigator.serviceWorker.register('/Clock/sw.js')
     .then(reg => {
       swRegistration = reg;
 
