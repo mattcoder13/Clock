@@ -2,7 +2,7 @@
   "name": "Clock",
   "short_name": "Clock",
   "description": "Clock, timer, interval trainer, and stopwatch",
-  "start_url": "/index.html",
+  "start_url": "/Clock/index.html",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#0a0a0a",
